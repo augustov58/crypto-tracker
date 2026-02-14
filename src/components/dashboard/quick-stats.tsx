@@ -25,9 +25,10 @@ export function QuickStats() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [portfolioRes, walletsRes] = await Promise.all([
+        const [portfolioRes, walletsRes, defiRes] = await Promise.all([
           fetch("/api/portfolio"),
           fetch("/api/wallets"),
+          fetch("/api/defi").catch(() => null), // DeFi is optional
         ]);
 
         if (!portfolioRes.ok || !walletsRes.ok) {
@@ -36,6 +37,13 @@ export function QuickStats() {
 
         const portfolio: PortfolioResponse = await portfolioRes.json();
         const { wallets } = await walletsRes.json();
+        
+        // Fetch DeFi value (optional - may not be configured)
+        let defiValue = 0;
+        if (defiRes?.ok) {
+          const defi = await defiRes.json();
+          defiValue = defi.totalUsd || 0;
+        }
 
         // Calculate total PnL from tokens with cost basis
         let totalPnl = 0;
@@ -51,7 +59,7 @@ export function QuickStats() {
           totalValue: portfolio.totalUsd,
           change24h: portfolio.change24hUsd || 0,
           change24hPercent: portfolio.change24hPercent || 0,
-          defiValue: 0, // Will be populated when DeFi tracking is added
+          defiValue, // DeFi positions from DeBank (shown separately, not summed)
           totalPnl,
           totalPnlPercent: totalCostValue > 0 ? (totalPnl / totalCostValue) * 100 : 0,
           tokenCount: portfolio.tokens.length,
@@ -129,7 +137,7 @@ export function QuickStats() {
             ${stats.defiValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </div>
           <div className="text-sm text-muted-foreground">
-            {stats.totalValue > 0 ? ((stats.defiValue / stats.totalValue) * 100).toFixed(1) : 0}% of portfolio
+            {stats.defiValue > 0 ? "Included in portfolio" : "0.0% of portfolio"}
           </div>
         </CardContent>
       </Card>
