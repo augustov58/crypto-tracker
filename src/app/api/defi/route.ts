@@ -66,8 +66,15 @@ export async function GET() {
         const client = new ZerionClient(zerionApiKey);
         const allPositions: DefiPosition[] = [];
         
-        for (const address of uniqueAddresses) {
+        // Add delay helper to avoid rate limiting
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+        
+        for (let i = 0; i < uniqueAddresses.length; i++) {
+          const address = uniqueAddresses[i];
           try {
+            // Add delay between requests (except first)
+            if (i > 0) await delay(1000);
+            
             const positions = await client.getDefiPositions(address);
             const transformed = transformZerionPositions(positions);
             allPositions.push(...transformed);

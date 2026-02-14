@@ -152,45 +152,163 @@ export class ZerionClient {
   
   /**
    * Get only DeFi positions (excludes simple wallet holdings)
+   * Now fetches all positions and relies on transformZerionPositions to detect vault tokens
    */
   async getDefiPositions(address: string): Promise<ZerionPosition[]> {
-    return this.getWalletPositions(address, {
-      filterPositionTypes: ['staked', 'deposit', 'locked', 'reward', 'borrowed', 'claimable'],
-    });
+    // Fetch all positions - the transform function will detect vault tokens
+    // that Zerion classifies as "wallet" but are actually DeFi positions
+    return this.getWalletPositions(address);
   }
 }
 
 /**
+ * Known vault/DeFi protocols that Zerion may classify as "wallet" positions
+ * Maps token name patterns to protocol info
+ * Patterns should be specific to avoid false positives
+ */
+const VAULT_TOKEN_PATTERNS: Array<{
+  pattern: RegExp;
+  protocol: string;
+  type: 'deposit' | 'staked' | 'lending' | 'yield';
+}> = [
+  // Midas - yield aggregator
+  { pattern: /^Midas\s/i, protocol: 'Midas', type: 'yield' },
+  { pattern: /^mEDGE$/i, protocol: 'Midas', type: 'yield' },
+  { pattern: /^mBASIS$/i, protocol: 'Midas', type: 'yield' },
+  // Instadapp - vault aggregator
+  { pattern: /^Instadapp/i, protocol: 'Instadapp', type: 'deposit' },
+  { pattern: /^iETH/i, protocol: 'Instadapp', type: 'deposit' },
+  // Fluid - lending protocol (specific token names)
+  { pattern: /^Fluid\s/i, protocol: 'Fluid', type: 'lending' },
+  { pattern: /^fUSDC$/i, protocol: 'Fluid', type: 'lending' },
+  { pattern: /^fUSDT$/i, protocol: 'Fluid', type: 'lending' },
+  { pattern: /^fETH$/i, protocol: 'Fluid', type: 'lending' },
+  // Morpho - lending aggregator
+  { pattern: /^Morpho/i, protocol: 'Morpho', type: 'lending' },
+  // Gauntlet - risk-managed vaults
+  { pattern: /^Gauntlet/i, protocol: 'Gauntlet', type: 'yield' },
+  // Aave - lending (explicit token names only)
+  { pattern: /^Aave\s/i, protocol: 'Aave', type: 'lending' },
+  { pattern: /^aEth/i, protocol: 'Aave', type: 'lending' },
+  { pattern: /^aUSDC$/i, protocol: 'Aave', type: 'lending' },
+  { pattern: /^aUSDT$/i, protocol: 'Aave', type: 'lending' },
+  { pattern: /^aDAI$/i, protocol: 'Aave', type: 'lending' },
+  { pattern: /^aWETH$/i, protocol: 'Aave', type: 'lending' },
+  { pattern: /^aWBTC$/i, protocol: 'Aave', type: 'lending' },
+  // Compound - lending (explicit token names only)
+  { pattern: /^Compound\s/i, protocol: 'Compound', type: 'lending' },
+  { pattern: /^cUSDC$/i, protocol: 'Compound', type: 'lending' },
+  { pattern: /^cUSDT$/i, protocol: 'Compound', type: 'lending' },
+  { pattern: /^cDAI$/i, protocol: 'Compound', type: 'lending' },
+  { pattern: /^cETH$/i, protocol: 'Compound', type: 'lending' },
+  { pattern: /^cWBTC$/i, protocol: 'Compound', type: 'lending' },
+  // Lido - liquid staking
+  { pattern: /^Lido\s/i, protocol: 'Lido', type: 'staked' },
+  { pattern: /^stETH$/i, protocol: 'Lido', type: 'staked' },
+  { pattern: /^wstETH$/i, protocol: 'Lido', type: 'staked' },
+  { pattern: /^Staked\sETH$/i, protocol: 'Lido', type: 'staked' },
+  // Rocket Pool
+  { pattern: /^rETH$/i, protocol: 'Rocket Pool', type: 'staked' },
+  { pattern: /^Rocket Pool/i, protocol: 'Rocket Pool', type: 'staked' },
+  // Yearn
+  { pattern: /^Yearn\s/i, protocol: 'Yearn', type: 'yield' },
+  { pattern: /^yvUSDC$/i, protocol: 'Yearn', type: 'yield' },
+  { pattern: /^yvDAI$/i, protocol: 'Yearn', type: 'yield' },
+  { pattern: /^yvWETH$/i, protocol: 'Yearn', type: 'yield' },
+  // Curve LP tokens
+  { pattern: /^Curve\.fi/i, protocol: 'Curve', type: 'deposit' },
+  { pattern: /Curve.*LP$/i, protocol: 'Curve', type: 'deposit' },
+  // Convex
+  { pattern: /^Convex/i, protocol: 'Convex', type: 'staked' },
+  { pattern: /^cvx/i, protocol: 'Convex', type: 'staked' },
+  // Pendle - yield trading
+  { pattern: /^Pendle/i, protocol: 'Pendle', type: 'yield' },
+  { pattern: /^PT-/i, protocol: 'Pendle', type: 'yield' },
+  { pattern: /^YT-/i, protocol: 'Pendle', type: 'yield' },
+  // EtherFi / EigenLayer restaking
+  { pattern: /^eETH$/i, protocol: 'EtherFi', type: 'staked' },
+  { pattern: /^weETH$/i, protocol: 'EtherFi', type: 'staked' },
+  { pattern: /^EtherFi/i, protocol: 'EtherFi', type: 'staked' },
+  // Spark (MakerDAO lending)
+  { pattern: /^Spark\s/i, protocol: 'Spark', type: 'lending' },
+  { pattern: /^spDAI$/i, protocol: 'Spark', type: 'lending' },
+  // Maker/Sky savings
+  { pattern: /^sDAI$/i, protocol: 'Maker', type: 'yield' },
+  { pattern: /^Savings\sDAI$/i, protocol: 'Maker', type: 'yield' },
+  // Coinbase wrapped staked ETH
+  { pattern: /^cbETH$/i, protocol: 'Coinbase', type: 'staked' },
+  // Generic vault patterns (more restrictive)
+  { pattern: /\sVault$/i, protocol: 'Vault', type: 'deposit' },
+  { pattern: /\sLP\sToken$/i, protocol: 'LP', type: 'deposit' },
+];
+
+/**
+ * Check if a token is a known vault/DeFi token
+ */
+function detectVaultToken(name: string, symbol: string): { protocol: string; type: string } | null {
+  for (const { pattern, protocol, type } of VAULT_TOKEN_PATTERNS) {
+    if (pattern.test(name) || pattern.test(symbol)) {
+      return { protocol, type };
+    }
+  }
+  return null;
+}
+
+/**
  * Transform Zerion positions into our unified DeFi format
+ * Now includes vault token detection for positions classified as "wallet"
  */
 export function transformZerionPositions(positions: ZerionPosition[]): DefiPosition[] {
   // Group by protocol + chain + group_id (for LP pools)
-  const grouped = new Map<string, ZerionPosition[]>();
+  // Store detected protocol info with each group
+  const grouped = new Map<string, { positions: ZerionPosition[]; detectedProtocol: string; detectedType: string }>();
   
   for (const pos of positions) {
     const attr = pos.attributes;
-    // Skip simple wallet positions and trash
-    if (attr.position_type === 'wallet' || attr.flags.is_trash || !attr.flags.displayable) {
+    
+    // Skip trash
+    if (attr.flags.is_trash) {
       continue;
     }
     
-    const protocol = attr.application_metadata?.name || attr.protocol || 'Unknown';
+    // Check if it's a known DeFi position type
+    const isDefiType = attr.position_type !== 'wallet';
+    
+    // Check if it's a vault token that Zerion classified as "wallet"
+    // Check vault tokens BEFORE displayable filter - some vaults are marked non-displayable
+    const vaultInfo = !isDefiType 
+      ? detectVaultToken(attr.fungible_info.name, attr.fungible_info.symbol)
+      : null;
+    
+    // Skip non-displayable UNLESS it's a detected vault token
+    if (!attr.flags.displayable && !vaultInfo && !isDefiType) {
+      continue;
+    }
+    
+    // Skip if neither DeFi type nor vault token
+    if (!isDefiType && !vaultInfo) {
+      continue;
+    }
+    
+    const detectedProtocol = attr.application_metadata?.name || attr.protocol || vaultInfo?.protocol || 'Unknown';
+    const detectedType = vaultInfo?.type || attr.position_type;
     const chain = pos.relationships.chain.data.id;
     const groupId = attr.group_id || pos.id;
-    const key = `${protocol}-${chain}-${groupId}`;
+    const key = `${detectedProtocol}-${chain}-${groupId}`;
     
     if (!grouped.has(key)) {
-      grouped.set(key, []);
+      grouped.set(key, { positions: [], detectedProtocol, detectedType });
     }
-    grouped.get(key)!.push(pos);
+    grouped.get(key)!.positions.push(pos);
   }
   
   // Transform grouped positions
   const result: DefiPosition[] = [];
   
-  for (const [key, groupPositions] of grouped.entries()) {
+  for (const [key, group] of grouped.entries()) {
+    const { positions: groupPositions, detectedProtocol, detectedType } = group;
     const first = groupPositions[0].attributes;
-    const protocol = first.application_metadata?.name || first.protocol || 'Unknown';
+    const protocol = detectedProtocol;
     const chain = groupPositions[0].relationships.chain.data.id;
     
     const tokens: DefiPosition['tokens'] = [];
@@ -230,9 +348,12 @@ export function transformZerionPositions(positions: ZerionPosition[]): DefiPosit
       }
     }
     
-    // Determine position type
-    const types = [...new Set(groupPositions.map(p => p.attributes.position_type))];
-    const type = types.length === 1 ? types[0] : types.join(' + ');
+    // Determine position type - use detected type for vault tokens
+    const type = detectedType !== 'wallet' ? detectedType : 
+      (() => {
+        const types = [...new Set(groupPositions.map(p => p.attributes.position_type))];
+        return types.length === 1 ? types[0] : types.join(' + ');
+      })();
     
     result.push({
       id: key,
