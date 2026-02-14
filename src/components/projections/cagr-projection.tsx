@@ -40,7 +40,7 @@ export function CagrProjection() {
     for (let month = 0; month <= years * 12; month++) {
       data.push({
         month,
-        year: (month / 12).toFixed(1),
+        year: month / 12,  // Keep as number for proper chart rendering
         value: Math.round(value),
         label: month % 12 === 0 ? `Year ${month / 12}` : "",
       });
@@ -141,8 +141,11 @@ export function CagrProjection() {
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis 
                 dataKey="year" 
+                type="number"
+                domain={[0, years]}
                 stroke="#9ca3af"
-                tickFormatter={(v) => v % 1 === 0 ? `Y${v}` : ""}
+                tickFormatter={(v) => Number.isInteger(v) ? `Y${v}` : ""}
+                ticks={Array.from({ length: years + 1 }, (_, i) => i)}
               />
               <YAxis 
                 stroke="#9ca3af"
@@ -155,12 +158,14 @@ export function CagrProjection() {
                   borderRadius: "8px",
                 }}
                 formatter={(value) => [`$${(value as number).toLocaleString()}`, "Value"]}
+                labelFormatter={(label) => `Year ${Number(label).toFixed(1)}`}
               />
               <Area
                 type="monotone"
                 dataKey="value"
                 fill="rgba(59, 130, 246, 0.2)"
                 stroke="transparent"
+                isAnimationActive={false}
               />
               <Line
                 type="monotone"
@@ -168,6 +173,7 @@ export function CagrProjection() {
                 stroke="#3b82f6"
                 strokeWidth={2}
                 dot={false}
+                isAnimationActive={false}
               />
             </ComposedChart>
           </ResponsiveContainer>
