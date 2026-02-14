@@ -9,8 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle, XCircle, Loader2, ExternalLink } from "lucide-react";
 
 export function ApiKeysSettings() {
-  const [debankKey, setDebankKey] = useState("");
-  const [savedKey, setSavedKey] = useState("");
+  const [zerionKey, setZerionKey] = useState("");
+  const [savedZerionKey, setSavedZerionKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -22,9 +22,9 @@ export function ApiKeysSettings() {
         const res = await fetch("/api/settings/api-keys");
         if (res.ok) {
           const data = await res.json();
-          if (data.debankKey) {
-            setSavedKey(data.debankKey);
-            setDebankKey(data.debankKey);
+          if (data.zerionKey) {
+            setSavedZerionKey(data.zerionKey);
+            setZerionKey(data.zerionKey);
           }
         }
       } catch (err) {
@@ -42,11 +42,11 @@ export function ApiKeysSettings() {
       const res = await fetch("/api/settings/api-keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ debankKey }),
+        body: JSON.stringify({ zerionKey }),
       });
       
       if (res.ok) {
-        setSavedKey(debankKey);
+        setSavedZerionKey(zerionKey);
         setTestResult({ success: true, message: "API key saved successfully!" });
       } else {
         const data = await res.json();
@@ -67,14 +67,14 @@ export function ApiKeysSettings() {
       const res = await fetch("/api/settings/api-keys/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ debankKey: debankKey || savedKey }),
+        body: JSON.stringify({ zerionKey: zerionKey || savedZerionKey }),
       });
       
       const data = await res.json();
       setTestResult({
         success: data.success,
         message: data.success 
-          ? `Connected! Found ${data.protocolCount || 0} DeFi positions.`
+          ? `Connected! Found ${data.positionCount || 0} DeFi positions worth $${data.totalValue?.toLocaleString() || 0}.`
           : data.error || "Connection failed",
       });
     } catch (err) {
@@ -84,7 +84,7 @@ export function ApiKeysSettings() {
     }
   };
 
-  const hasChanges = debankKey !== savedKey;
+  const hasChanges = zerionKey !== savedZerionKey;
 
   return (
     <Card>
@@ -97,19 +97,19 @@ export function ApiKeysSettings() {
       <CardContent className="space-y-6">
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="debank-key">DeBank API Key</Label>
+            <Label htmlFor="zerion-key">Zerion API Key</Label>
             <div className="flex gap-2">
               <Input
-                id="debank-key"
+                id="zerion-key"
                 type="password"
-                placeholder="Enter your DeBank API key"
-                value={debankKey}
-                onChange={(e) => setDebankKey(e.target.value)}
+                placeholder="zk_..."
+                value={zerionKey}
+                onChange={(e) => setZerionKey(e.target.value)}
               />
               <Button
                 variant="outline"
                 onClick={handleTest}
-                disabled={testing || (!debankKey && !savedKey)}
+                disabled={testing || (!zerionKey && !savedZerionKey)}
               >
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Test"}
               </Button>
@@ -117,12 +117,12 @@ export function ApiKeysSettings() {
             <p className="text-sm text-muted-foreground">
               Get a free API key at{" "}
               <a
-                href="https://cloud.debank.com"
+                href="https://developers.zerion.io"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline inline-flex items-center gap-1"
               >
-                cloud.debank.com
+                developers.zerion.io
                 <ExternalLink className="h-3 w-3" />
               </a>
             </p>
@@ -152,13 +152,14 @@ export function ApiKeysSettings() {
         </div>
 
         <div className="pt-4 border-t">
-          <h4 className="font-medium mb-2">What DeBank provides:</h4>
+          <h4 className="font-medium mb-2">What Zerion provides:</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>• DeFi positions across 100+ protocols (Aave, Compound, Uniswap, etc.)</li>
             <li>• Yield farming & staking positions</li>
             <li>• LP positions with detailed token breakdowns</li>
             <li>• Debt/borrowing positions</li>
             <li>• Support for vaults.fyi and other yield aggregators</li>
+            <li>• Claimable rewards and airdrops</li>
           </ul>
         </div>
       </CardContent>

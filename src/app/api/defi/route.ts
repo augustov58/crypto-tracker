@@ -6,18 +6,19 @@
 
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase';
-import { DebankClient, transformDebankPositions, DefiPosition, DEBANK_CHAIN_IDS } from '@/lib/defi/debank';
+import { DebankClient, transformDebankPositions, DefiPosition } from '@/lib/defi/debank';
+import { ZerionClient, transformZerionPositions } from '@/lib/defi/zerion';
 
 export interface DefiResponse {
   positions: DefiPosition[];
   totalUsd: number;
-  source: 'debank' | 'token-detection';
+  source: 'zerion' | 'debank' | 'token-detection';
 }
 
-async function getDebankApiKey(supabase: ReturnType<typeof getServerSupabase>): Promise<string | null> {
+async function getApiKey(supabase: ReturnType<typeof getServerSupabase>, key: string, envVar: string): Promise<string | null> {
   // First check environment variable
-  if (process.env.DEBANK_API_KEY) {
-    return process.env.DEBANK_API_KEY;
+  if (process.env[envVar]) {
+    return process.env[envVar]!;
   }
   
   // Then check settings table
@@ -26,7 +27,7 @@ async function getDebankApiKey(supabase: ReturnType<typeof getServerSupabase>): 
     const { data } = await (supabase as any)
       .from('settings')
       .select('value')
-      .eq('key', 'debank_api_key')
+      .eq('key', key)
       .single();
     
     return data?.value || null;
@@ -50,34 +51,65 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch wallets' }, { status: 500 });
     }
 
-    // Check for DeBank API key
-    const debankApiKey = await getDebankApiKey(supabase);
+    // Get unique EVM addresses
+    const uniqueAddresses = [...new Set(
+      wallets
+        .map((w: { address: string }) => w.address.toLowerCase())
+        .filter((addr: string) => addr.startsWith('0x'))
+    )];
+
+    // Check for Zerion API key first (preferred)
+    const zerionApiKey = await getApiKey(supabase, 'zerion_api_key', 'ZERION_API_KEY');
     
-    // If DeBank API key is configured, use it
+    if (zerionApiKey) {
+      try {
+        const client = new ZerionClient(zerionApiKey);
+        const allPositions: DefiPosition[] = [];
+        
+        for (const address of uniqueAddresses) {
+          try {
+            const positions = await client.getDefiPositions(address);
+            const transformed = transformZerionPositions(positions);
+            allPositions.push(...transformed);
+          } catch (err) {
+            console.error(`Zerion error for ${address}:`, err);
+          }
+        }
+        
+        const uniquePositions = Array.from(
+          new Map(allPositions.map(p => [p.id, p])).values()
+        ).sort((a, b) => b.netUsdValue - a.netUsdValue);
+        
+        const totalUsd = uniquePositions.reduce((sum, p) => sum + p.netUsdValue, 0);
+        
+        return NextResponse.json<DefiResponse>({
+          positions: uniquePositions,
+          totalUsd,
+          source: 'zerion',
+        });
+      } catch (err) {
+        console.error('Zerion API failed, trying DeBank:', err);
+      }
+    }
+
+    // Check for DeBank API key (fallback)
+    const debankApiKey = await getApiKey(supabase, 'debank_api_key', 'DEBANK_API_KEY');
+    
     if (debankApiKey) {
       try {
         const client = new DebankClient(debankApiKey);
         const allPositions: DefiPosition[] = [];
         
-        // Get unique addresses (some wallets may share addresses across chains)
-        const uniqueAddresses = [...new Set(wallets.map((w: { address: string }) => w.address.toLowerCase()))];
-        
-        // Fetch positions for each address
         for (const address of uniqueAddresses) {
-          // Only fetch for EVM addresses (skip Bitcoin, Solana, etc.)
-          if (!address.startsWith('0x')) continue;
-          
           try {
             const protocols = await client.getAllProtocolPositions(address);
             const positions = transformDebankPositions(protocols);
             allPositions.push(...positions);
           } catch (err) {
             console.error(`DeBank error for ${address}:`, err);
-            // Continue with other addresses
           }
         }
         
-        // Deduplicate positions by ID
         const uniquePositions = Array.from(
           new Map(allPositions.map(p => [p.id, p])).values()
         ).sort((a, b) => b.netUsdValue - a.netUsdValue);
@@ -91,7 +123,6 @@ export async function GET() {
         });
       } catch (err) {
         console.error('DeBank API failed, falling back to token detection:', err);
-        // Fall through to token detection
       }
     }
 
