@@ -1,22 +1,44 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { RefreshCw } from "lucide-react";
-import { mockPortfolioStats } from "@/lib/mock-data";
 
 export function MonteCarloProjection() {
+  const [currentValue, setCurrentValue] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(365);
   const [simulations, setSimulations] = useState(1000);
   const [volatility, setVolatility] = useState(60);
   const [drift, setDrift] = useState(15);
   const [seed, setSeed] = useState(Date.now());
 
+  useEffect(() => {
+    async function fetchPortfolio() {
+      try {
+        const response = await fetch("/api/portfolio");
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentValue(data.totalUsd || 0);
+        }
+      } catch {
+        setCurrentValue(0);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchPortfolio();
+  }, []);
+
   const { projectionData, percentiles } = useMemo(() => {
-    const currentValue = mockPortfolioStats.totalValue;
+    if (currentValue === null) {
+      return { projectionData: [], percentiles: { p10: 0, p25: 0, p50: 0, p75: 0, p90: 0 } };
+    }
+
     const dailyVolatility = volatility / 100 / Math.sqrt(365);
     const dailyDrift = drift / 100 / 365;
     
@@ -68,7 +90,20 @@ export function MonteCarloProjection() {
       },
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days, simulations, volatility, drift, seed]);
+  }, [currentValue, days, simulations, volatility, drift, seed]);
+
+  if (loading || currentValue === null) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Monte Carlo Simulation</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[400px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card data-testid="fan-chart">

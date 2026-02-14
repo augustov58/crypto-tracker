@@ -1,18 +1,38 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, ComposedChart } from "recharts";
-import { mockPortfolioStats } from "@/lib/mock-data";
 
 export function CagrProjection() {
+  const [currentValue, setCurrentValue] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const [growthRate, setGrowthRate] = useState(20);
   const [years, setYears] = useState(5);
   const [monthlyDca, setMonthlyDca] = useState(500);
 
+  useEffect(() => {
+    async function fetchPortfolio() {
+      try {
+        const response = await fetch("/api/portfolio");
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentValue(data.totalUsd || 0);
+        }
+      } catch {
+        setCurrentValue(0);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchPortfolio();
+  }, []);
+
   const projectionData = useMemo(() => {
-    const currentValue = mockPortfolioStats.totalValue;
+    if (currentValue === null) return [];
+    
     const monthlyRate = growthRate / 100 / 12;
     const data = [];
 
@@ -28,10 +48,23 @@ export function CagrProjection() {
     }
 
     return data;
-  }, [growthRate, years, monthlyDca]);
+  }, [currentValue, growthRate, years, monthlyDca]);
+
+  if (loading || currentValue === null) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>CAGR Projection</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[400px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   const finalValue = projectionData[projectionData.length - 1]?.value || 0;
-  const totalGain = finalValue - mockPortfolioStats.totalValue;
+  const totalGain = finalValue - currentValue;
   const totalDca = monthlyDca * years * 12;
 
   return (
@@ -86,7 +119,7 @@ export function CagrProjection() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-4 bg-accent/50 rounded-lg">
             <p className="text-sm text-muted-foreground">Current Value</p>
-            <p className="text-xl font-bold">${mockPortfolioStats.totalValue.toLocaleString()}</p>
+            <p className="text-xl font-bold">${currentValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
           <div className="p-4 bg-accent/50 rounded-lg">
             <p className="text-sm text-muted-foreground">Projected Value</p>

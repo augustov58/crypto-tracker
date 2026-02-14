@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { mockPortfolioStats } from "@/lib/mock-data";
 
 interface Scenario {
   name: string;
@@ -14,12 +14,31 @@ interface Scenario {
 }
 
 export function ScenarioProjection() {
+  const [currentValue, setCurrentValue] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
   const [years, setYears] = useState(3);
   const [scenarios, setScenarios] = useState<Scenario[]>([
     { name: "Bull", multiplier: 3.0, probability: 25, color: "#22c55e" },
     { name: "Base", multiplier: 1.5, probability: 50, color: "#3b82f6" },
     { name: "Bear", multiplier: 0.4, probability: 25, color: "#ef4444" },
   ]);
+
+  useEffect(() => {
+    async function fetchPortfolio() {
+      try {
+        const response = await fetch("/api/portfolio");
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentValue(data.totalUsd || 0);
+        }
+      } catch {
+        setCurrentValue(0);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchPortfolio();
+  }, []);
 
   const updateScenario = (index: number, field: keyof Scenario, value: number) => {
     const updated = [...scenarios];
@@ -28,7 +47,7 @@ export function ScenarioProjection() {
   };
 
   const projectionData = useMemo(() => {
-    const currentValue = mockPortfolioStats.totalValue;
+    if (currentValue === null) return [];
     const data = [];
 
     for (let month = 0; month <= years * 12; month++) {
@@ -47,10 +66,23 @@ export function ScenarioProjection() {
     }
 
     return data;
-  }, [years, scenarios]);
+  }, [currentValue, years, scenarios]);
+
+  if (loading || currentValue === null) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Scenario Analysis</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-[400px] w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   const expectedValue = scenarios.reduce((sum, s) => {
-    const finalValue = mockPortfolioStats.totalValue * s.multiplier;
+    const finalValue = currentValue * s.multiplier;
     return sum + finalValue * (s.probability / 100);
   }, 0);
 
@@ -93,7 +125,7 @@ export function ScenarioProjection() {
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                ${(mockPortfolioStats.totalValue * scenario.multiplier).toLocaleString()} @ {scenario.probability}%
+                ${(currentValue * scenario.multiplier).toLocaleString(undefined, { maximumFractionDigits: 0 })} @ {scenario.probability}%
               </p>
             </div>
           ))}
@@ -102,24 +134,24 @@ export function ScenarioProjection() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-4 bg-accent/50 rounded-lg">
             <p className="text-sm text-muted-foreground">Current Value</p>
-            <p className="text-xl font-bold">${mockPortfolioStats.totalValue.toLocaleString()}</p>
+            <p className="text-xl font-bold">${currentValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
           </div>
           <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/20">
             <p className="text-sm text-green-500">Bull Case</p>
             <p className="text-xl font-bold text-green-500">
-              ${(mockPortfolioStats.totalValue * scenarios[0].multiplier).toLocaleString()}
+              ${(currentValue * scenarios[0].multiplier).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </div>
           <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
             <p className="text-sm text-blue-500">Base Case</p>
             <p className="text-xl font-bold text-blue-500">
-              ${(mockPortfolioStats.totalValue * scenarios[1].multiplier).toLocaleString()}
+              ${(currentValue * scenarios[1].multiplier).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </div>
           <div className="p-4 bg-red-500/10 rounded-lg border border-red-500/20">
             <p className="text-sm text-red-500">Bear Case</p>
             <p className="text-xl font-bold text-red-500">
-              ${(mockPortfolioStats.totalValue * scenarios[2].multiplier).toLocaleString()}
+              ${(currentValue * scenarios[2].multiplier).toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </p>
           </div>
         </div>
