@@ -67,7 +67,9 @@ export function PortfolioValueChart() {
 
   // Render chart
   useEffect(() => {
-    if (typeof window === "undefined" || !chartContainerRef.current || chartData.length === 0) return;
+    // Need at least 2 unique dates to draw a line
+    const uniqueDates = new Set(chartData.map(d => d.time.split("T")[0]));
+    if (typeof window === "undefined" || !chartContainerRef.current || chartData.length === 0 || uniqueDates.size < 2) return;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let chart: any = null;
@@ -103,11 +105,19 @@ export function PortfolioValueChart() {
         lineWidth: 2,
       });
 
-      // Use Unix timestamps for intraday data
-      const formattedData = chartData.map((d) => ({
-        time: Math.floor(new Date(d.time).getTime() / 1000) as unknown as `${number}-${number}-${number}`,
-        value: d.value,
-      }));
+      // Deduplicate by date and use latest value per day
+      const byDate = new Map<string, number>();
+      chartData.forEach((d) => {
+        const dateStr = d.time.split("T")[0];
+        byDate.set(dateStr, d.value); // Latest value wins
+      });
+      
+      const formattedData = Array.from(byDate.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, value]) => ({
+          time: date as `${number}-${number}-${number}`,
+          value,
+        }));
 
       areaSeries.setData(formattedData);
       chart.timeScale().fitContent();
@@ -159,6 +169,11 @@ export function PortfolioValueChart() {
         ) : chartData.length === 0 ? (
           <div className="flex items-center justify-center h-[300px] text-muted-foreground">
             No historical data yet. Snapshots will appear after the first cron run.
+          </div>
+        ) : chartData.length < 2 || new Set(chartData.map(d => d.time.split("T")[0])).size < 2 ? (
+          <div className="flex items-center justify-center h-[300px] text-muted-foreground flex-col gap-2">
+            <p>Need more data points to show chart.</p>
+            <p className="text-sm">Current value: ${chartData[chartData.length - 1]?.value.toLocaleString() || 'N/A'}</p>
           </div>
         ) : (
           <div ref={chartContainerRef} style={{ width: '100%', height: 300 }} />
