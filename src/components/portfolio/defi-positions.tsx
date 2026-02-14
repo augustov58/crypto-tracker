@@ -20,9 +20,9 @@ export function DefiPositions() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <CardTitle>DeFi Positions</CardTitle>
-        <div className="text-right">
+        <div className="sm:text-right">
           <p className="text-2xl font-bold">${totalDefi.toLocaleString()}</p>
           <p className="text-sm text-muted-foreground">Total DeFi Value</p>
         </div>
@@ -32,13 +32,13 @@ export function DefiPositions() {
           {mockDefiPositions.map((position, index) => (
             <div key={position.id}>
               {index > 0 && <Separator className="mb-4" />}
-              <div className="flex items-start justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center font-bold">
+                  <div className="w-10 h-10 rounded-lg bg-accent flex items-center justify-center font-bold shrink-0">
                     {position.protocol.slice(0, 2)}
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium">{position.protocol}</p>
                       <Badge variant="secondary" className={typeColors[position.type]}>
                         {position.type}
@@ -46,7 +46,7 @@ export function DefiPositions() {
                     </div>
                     <div className="mt-2 space-y-1">
                       {position.tokens.map((token, i) => (
-                        <div key={i} className="flex items-center gap-4 text-sm">
+                        <div key={i} className="flex items-center gap-2 sm:gap-4 text-sm flex-wrap">
                           <span className="font-mono">
                             {token.amount.toLocaleString()} {token.symbol}
                           </span>
@@ -58,7 +58,7 @@ export function DefiPositions() {
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="sm:text-right flex sm:flex-col items-center sm:items-end gap-2 sm:gap-0 pl-13 sm:pl-0">
                   <p className="font-mono font-medium">
                     ${position.tokens.reduce((s, t) => s + t.usdValue, 0).toLocaleString()}
                   </p>

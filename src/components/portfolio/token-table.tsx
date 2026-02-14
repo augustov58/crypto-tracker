@@ -97,8 +97,8 @@ export function TokenTable() {
       <CardHeader>
         <CardTitle>Token Holdings</CardTitle>
       </CardHeader>
-      <CardContent>
-        <Table>
+      <CardContent className="overflow-x-auto">
+        <Table className="min-w-[700px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-8"></TableHead>
