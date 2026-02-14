@@ -130,8 +130,8 @@ export function AllocationPie() {
         <CardTitle>Asset Allocation</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ width: '100%', height: 300 }}>
+          <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
                 data={data}

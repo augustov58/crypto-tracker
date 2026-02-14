@@ -160,7 +160,7 @@ export function PortfolioValueChart() {
             No historical data yet. Snapshots will appear after the first cron run.
           </div>
         ) : (
-          <div ref={chartContainerRef} className="w-full" />
+          <div ref={chartContainerRef} style={{ width: '100%', height: 300 }} />
         )}
       </CardContent>
     </Card>
