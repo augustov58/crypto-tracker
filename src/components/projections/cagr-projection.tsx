@@ -135,8 +135,8 @@ export function CagrProjection() {
           </div>
         </div>
 
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[300px] w-full min-h-[300px]">
+          <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={300}>
             <ComposedChart data={projectionData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis 
