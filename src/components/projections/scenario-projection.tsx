@@ -161,8 +161,8 @@ export function ScenarioProjection() {
           <p className="text-2xl font-bold text-primary">${Math.round(expectedValue).toLocaleString()}</p>
         </div>
 
-        <div className="h-[300px] w-full min-h-[300px]">
-          <ResponsiveContainer width="100%" height="100%" minWidth={300} minHeight={300}>
+        <div style={{ width: '100%', height: 300 }}>
+          <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={projectionData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
               <XAxis 
