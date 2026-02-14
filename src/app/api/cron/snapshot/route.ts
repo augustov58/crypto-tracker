@@ -25,12 +25,17 @@ interface ChainFetchResult {
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. Verify CRON_SECRET
+    // 1. Verify CRON_SECRET or Vercel Cron header
     const authHeader = request.headers.get('authorization');
     const urlSecret = request.nextUrl.searchParams.get('key');
+    const vercelCronHeader = request.headers.get('x-vercel-cron');
     const providedSecret = authHeader?.replace('Bearer ', '') || urlSecret;
 
-    if (!CRON_SECRET || providedSecret !== CRON_SECRET) {
+    // Allow if: valid secret OR Vercel internal cron call
+    const isVercelCron = vercelCronHeader === '1';
+    const hasValidSecret = CRON_SECRET && providedSecret === CRON_SECRET;
+    
+    if (!isVercelCron && !hasValidSecret) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
