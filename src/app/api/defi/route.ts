@@ -70,7 +70,7 @@ export async function GET() {
         const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
         
         for (let i = 0; i < uniqueAddresses.length; i++) {
-          const address = uniqueAddresses[i];
+          const address = uniqueAddresses[i] as string;
           try {
             // Add delay between requests (except first)
             if (i > 0) await delay(1000);
@@ -107,7 +107,7 @@ export async function GET() {
         const client = new DebankClient(debankApiKey);
         const allPositions: DefiPosition[] = [];
         
-        for (const address of uniqueAddresses) {
+        for (const address of uniqueAddresses as string[]) {
           try {
             const protocols = await client.getAllProtocolPositions(address);
             const positions = transformDebankPositions(protocols);

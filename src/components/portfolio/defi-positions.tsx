@@ -5,7 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DefiResponse, DefiPosition } from "@/app/api/defi/route";
+import { DefiPosition } from "@/lib/defi/debank";
+
+interface DefiResponse {
+  positions: DefiPosition[];
+  totalUsd: number;
+  source: 'zerion' | 'debank' | 'token-detection';
+}
 
 const typeColors: Record<string, string> = {
   staking: "bg-green-500/10 text-green-500",
@@ -130,11 +136,8 @@ export function DefiPositions() {
                 </div>
                 <div className="sm:text-right flex sm:flex-col items-center sm:items-end gap-2 sm:gap-0 pl-13 sm:pl-0">
                   <p className="font-mono font-medium">
-                    ${position.totalUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    ${position.netUsdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </p>
-                  {position.apy && (
-                    <p className="text-sm text-green-500">{position.apy}% APY</p>
-                  )}
                 </div>
               </div>
             </div>
