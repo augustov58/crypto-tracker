@@ -103,8 +103,9 @@ export function PortfolioValueChart() {
         lineWidth: 2,
       });
 
+      // Use Unix timestamps for intraday data
       const formattedData = chartData.map((d) => ({
-        time: d.time.split("T")[0] as `${number}-${number}-${number}`,
+        time: Math.floor(new Date(d.time).getTime() / 1000) as unknown as `${number}-${number}-${number}`,
         value: d.value,
       }));
 
