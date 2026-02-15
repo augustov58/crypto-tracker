@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePortfolioStore, TimeRange } from "@/lib/store";
 import { SnapshotsResponse } from "@/app/api/snapshots/route";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 const timeRanges: { value: TimeRange; label: string; days: number }[] = [
   { value: "24h", label: "24H", days: 1 },
@@ -16,10 +24,15 @@ const timeRanges: { value: TimeRange; label: string; days: number }[] = [
   { value: "all", label: "All", days: 730 },
 ];
 
+interface ChartDataPoint {
+  date: string;
+  displayDate: string;
+  value: number;
+}
+
 export function PortfolioValueChart() {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
   const { timeRange, setTimeRange } = usePortfolioStore();
-  const [chartData, setChartData] = useState<{ time: string; value: number }[]>([]);
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,12 +45,12 @@ export function PortfolioValueChart() {
       try {
         const range = timeRanges.find((r) => r.value === timeRange);
         const days = range?.days || 7;
-        
+
         const from = new Date();
         from.setDate(from.getDate() - days);
-        
-        const interval = days > 14 ? 'daily' : 'hourly';
-        
+
+        const interval = days > 14 ? "daily" : "hourly";
+
         const response = await fetch(
           `/api/snapshots?from=${from.toISOString()}&interval=${interval}`
         );
@@ -47,13 +60,28 @@ export function PortfolioValueChart() {
         }
 
         const data: SnapshotsResponse = await response.json();
-        
-        setChartData(
-          data.snapshots.map((s) => ({
-            time: s.timestamp,
+
+        // Transform data for Recharts
+        const transformed = data.snapshots.map((s) => {
+          const date = new Date(s.timestamp);
+          return {
+            date: s.timestamp,
+            displayDate:
+              interval === "hourly"
+                ? date.toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    hour: "numeric",
+                  })
+                : date.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  }),
             value: s.totalUsd,
-          }))
-        );
+          };
+        });
+
+        setChartData(transformed);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
         setChartData([]);
@@ -65,97 +93,52 @@ export function PortfolioValueChart() {
     fetchSnapshots();
   }, [timeRange]);
 
-  // Render chart
-  useEffect(() => {
-    // Need at least 2 unique dates to draw a line
-    const uniqueDates = new Set(chartData.map(d => d.time.split("T")[0]));
-    if (typeof window === "undefined" || !chartContainerRef.current || chartData.length === 0 || uniqueDates.size < 2) {
-      return;
-    }
+  const formatYAxis = (value: number) => {
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
+    return `$${value.toFixed(0)}`;
+  };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let chart: any = null;
+  const formatTooltip = (value: number) => {
+    return `$${value.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
 
-    const initChart = async () => {
-      try {
-        const { createChart, ColorType } = await import("lightweight-charts");
-        
-        if (!chartContainerRef.current) return;
-        
-        // Ensure container has dimensions
-        const width = chartContainerRef.current.clientWidth || chartContainerRef.current.offsetWidth || 400;
-
-        chart = createChart(chartContainerRef.current, {
-        layout: {
-          background: { type: ColorType.Solid, color: "transparent" },
-          textColor: "#9ca3af",
-        },
-        grid: {
-          vertLines: { color: "#27272a" },
-          horzLines: { color: "#27272a" },
-        },
-        width: width,
-        height: 300,
-        timeScale: {
-          borderColor: "#27272a",
-        },
-        rightPriceScale: {
-          borderColor: "#27272a",
-        },
-      });
-
-      const areaSeries = chart.addAreaSeries({
-        topColor: "rgba(59, 130, 246, 0.4)",
-        bottomColor: "rgba(59, 130, 246, 0.0)",
-        lineColor: "#3b82f6",
-        lineWidth: 2,
-      });
-
-      // Deduplicate by date and use latest value per day
-      const byDate = new Map<string, number>();
-      chartData.forEach((d) => {
-        const dateStr = d.time.split("T")[0];
-        byDate.set(dateStr, d.value); // Latest value wins
-      });
-      
-      const formattedData = Array.from(byDate.entries())
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([date, value]) => ({
-          time: date as `${number}-${number}-${number}`,
-          value,
-        }));
-
-      areaSeries.setData(formattedData);
-      chart.timeScale().fitContent();
-      } catch (err) {
-        console.error('Chart render error:', err);
-      }
-    };
-
-    // Small delay to ensure container has dimensions
-    const timer = setTimeout(initChart, 100);
-
-    const handleResize = () => {
-      if (chart && chartContainerRef.current) {
-        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
-      }
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("resize", handleResize);
-      if (chart) {
-        chart.remove();
-      }
-    };
-  }, [chartData]);
+  // Calculate change percentage
+  const change =
+    chartData.length >= 2
+      ? ((chartData[chartData.length - 1].value - chartData[0].value) /
+          chartData[0].value) *
+        100
+      : null;
 
   return (
     <Card data-testid="portfolio-chart">
       <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <CardTitle>Portfolio Value</CardTitle>
+        <div>
+          <CardTitle>Portfolio Value</CardTitle>
+          {chartData.length > 0 && (
+            <div className="mt-1">
+              <span className="text-2xl font-bold">
+                $
+                {chartData[chartData.length - 1].value.toLocaleString(
+                  undefined,
+                  { maximumFractionDigits: 0 }
+                )}
+              </span>
+              {change !== null && (
+                <span
+                  className={`ml-2 text-sm ${change >= 0 ? "text-green-500" : "text-red-500"}`}
+                >
+                  {change >= 0 ? "+" : ""}
+                  {change.toFixed(2)}%
+                </span>
+              )}
+            </div>
+          )}
+        </div>
         <div className="flex gap-1 flex-wrap">
           {timeRanges.map((range) => (
             <Button
@@ -180,15 +163,64 @@ export function PortfolioValueChart() {
           </div>
         ) : chartData.length === 0 ? (
           <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-            No historical data yet. Snapshots will appear after the first cron run.
+            No historical data yet. Snapshots will appear after the first cron
+            run.
           </div>
-        ) : chartData.length < 2 || new Set(chartData.map(d => d.time.split("T")[0])).size < 2 ? (
+        ) : chartData.length < 2 ? (
           <div className="flex items-center justify-center h-[300px] text-muted-foreground flex-col gap-2">
             <p>Need more data points to show chart.</p>
-            <p className="text-sm">Current value: ${chartData[chartData.length - 1]?.value.toLocaleString() || 'N/A'}</p>
+            <p className="text-sm">
+              Current value: $
+              {chartData[chartData.length - 1]?.value.toLocaleString() || "N/A"}
+            </p>
           </div>
         ) : (
-          <div ref={chartContainerRef} style={{ width: '100%', height: 300 }} />
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart
+              data={chartData}
+              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                dataKey="displayDate"
+                tick={{ fill: "#9ca3af", fontSize: 12 }}
+                tickLine={false}
+                axisLine={{ stroke: "#27272a" }}
+                interval="preserveStartEnd"
+                minTickGap={50}
+              />
+              <YAxis
+                tickFormatter={formatYAxis}
+                tick={{ fill: "#9ca3af", fontSize: 12 }}
+                tickLine={false}
+                axisLine={false}
+                domain={["auto", "auto"]}
+                width={60}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#18181b",
+                  border: "1px solid #27272a",
+                  borderRadius: "8px",
+                  color: "#fff",
+                }}
+                labelStyle={{ color: "#9ca3af" }}
+                formatter={(value) => [formatTooltip(value as number), "Value"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#3b82f6"
+                strokeWidth={2}
+                fill="url(#colorValue)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         )}
       </CardContent>
     </Card>
