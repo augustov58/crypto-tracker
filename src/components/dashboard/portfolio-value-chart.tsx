@@ -69,17 +69,23 @@ export function PortfolioValueChart() {
   useEffect(() => {
     // Need at least 2 unique dates to draw a line
     const uniqueDates = new Set(chartData.map(d => d.time.split("T")[0]));
-    if (typeof window === "undefined" || !chartContainerRef.current || chartData.length === 0 || uniqueDates.size < 2) return;
+    if (typeof window === "undefined" || !chartContainerRef.current || chartData.length === 0 || uniqueDates.size < 2) {
+      return;
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let chart: any = null;
 
     const initChart = async () => {
-      const { createChart, ColorType } = await import("lightweight-charts");
-      
-      if (!chartContainerRef.current) return;
+      try {
+        const { createChart, ColorType } = await import("lightweight-charts");
+        
+        if (!chartContainerRef.current) return;
+        
+        // Ensure container has dimensions
+        const width = chartContainerRef.current.clientWidth || chartContainerRef.current.offsetWidth || 400;
 
-      chart = createChart(chartContainerRef.current, {
+        chart = createChart(chartContainerRef.current, {
         layout: {
           background: { type: ColorType.Solid, color: "transparent" },
           textColor: "#9ca3af",
@@ -88,7 +94,7 @@ export function PortfolioValueChart() {
           vertLines: { color: "#27272a" },
           horzLines: { color: "#27272a" },
         },
-        width: chartContainerRef.current.clientWidth,
+        width: width,
         height: 300,
         timeScale: {
           borderColor: "#27272a",
@@ -121,9 +127,13 @@ export function PortfolioValueChart() {
 
       areaSeries.setData(formattedData);
       chart.timeScale().fitContent();
+      } catch (err) {
+        console.error('Chart render error:', err);
+      }
     };
 
-    initChart();
+    // Small delay to ensure container has dimensions
+    const timer = setTimeout(initChart, 100);
 
     const handleResize = () => {
       if (chart && chartContainerRef.current) {
@@ -134,6 +144,7 @@ export function PortfolioValueChart() {
     window.addEventListener("resize", handleResize);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener("resize", handleResize);
       if (chart) {
         chart.remove();
