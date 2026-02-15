@@ -37,6 +37,8 @@ const TOKEN_REGISTRY: Record<string, { coingeckoId: string; chain: Chain[] }> = 
   '0x514910771af9ca656af840dff83e8264ecf986ca': { coingeckoId: 'chainlink', chain: ['ethereum'] },
   '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984': { coingeckoId: 'uniswap', chain: ['ethereum'] },
   '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9': { coingeckoId: 'aave', chain: ['ethereum'] },
+  // wQUIL (Quilibrium)
+  '0x8143182a775c54578c8b7b3ef77982498866945d': { coingeckoId: 'wrapped-quil', chain: ['ethereum'] },
   // Base tokens
   '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913': { coingeckoId: 'usd-coin', chain: ['base'] },
   // Arbitrum tokens  
