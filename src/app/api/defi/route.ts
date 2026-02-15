@@ -73,7 +73,7 @@ export async function GET() {
           const address = uniqueAddresses[i] as string;
           try {
             // Add delay between requests (except first)
-            if (i > 0) await delay(1000);
+            if (i > 0) await delay(2000); // 2s delay to avoid Zerion rate limits
             
             const positions = await client.getDefiPositions(address);
             const transformed = transformZerionPositions(positions);

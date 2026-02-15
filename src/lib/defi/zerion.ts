@@ -229,6 +229,8 @@ const VAULT_TOKEN_PATTERNS: Array<{
   { pattern: /^eETH$/i, protocol: 'EtherFi', type: 'staked' },
   { pattern: /^weETH$/i, protocol: 'EtherFi', type: 'staked' },
   { pattern: /^EtherFi/i, protocol: 'EtherFi', type: 'staked' },
+  { pattern: /^Ether\.Fi/i, protocol: 'EtherFi', type: 'staked' },
+  { pattern: /^liquidETH$/i, protocol: 'EtherFi', type: 'staked' },
   // Spark (MakerDAO lending)
   { pattern: /^Spark\s/i, protocol: 'Spark', type: 'lending' },
   { pattern: /^spDAI$/i, protocol: 'Spark', type: 'lending' },
