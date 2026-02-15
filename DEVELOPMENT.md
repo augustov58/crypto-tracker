@@ -73,11 +73,21 @@ CRON_SECRET=            # Auth for /api/cron/* endpoints
 **If still failing**: Wait 30-60 mins for rate limit reset, or upgrade Zerion plan.
 
 ### 2. Portfolio Chart Not Showing
-**Problem**: Chart appears empty or shows TradingView logo.
+**Problem**: Chart appears empty or shows TradingView logo with no data.
 
-**Solution**: We switched from `lightweight-charts` (TradingView) to `Recharts`.
-- Check `portfolio-value-chart.tsx` uses Recharts `<AreaChart>`
-- Ensure `/api/snapshots` returns at least 2 data points
+**Root cause**: `lightweight-charts` (TradingView library) is designed for financial candlestick charts and has quirks with simple line/area charts. It also had issues with container dimensions on initial render.
+
+**What we tried that didn't work**:
+- Adding delays before chart init
+- Checking container dimensions
+- Various data format adjustments
+
+**Solution**: Replaced `lightweight-charts` with `Recharts` (already installed).
+- `portfolio-value-chart.tsx` now uses `<AreaChart>` from Recharts
+- Much simpler API, better React integration, works on mobile
+- Added current value + % change display in header
+
+**To verify**: Check `/api/snapshots` returns at least 2 data points
 
 ### 3. Spam Tokens Cluttering Portfolio
 **Problem**: Airdrops and scam tokens pollute the token list.
@@ -98,13 +108,26 @@ CRON_SECRET=            # Auth for /api/cron/* endpoints
 **Current patterns include**: Midas, Instadapp, Fluid, Morpho, Gauntlet, Aave, Compound, Lido, Rocket Pool, Yearn, Curve, Convex, Pendle, EtherFi, Spark, Maker
 
 ### 5. Bittensor (TAO) Balance Issues
-**Problem**: Public TAO APIs (taostats, tensorplex) are dead.
+**Problem**: Public TAO APIs are dead or unreliable.
 
-**Solution**: Use `@polkadot/api` with Subtensor RPC directly.
+**APIs we tested that don't work**:
+- `taostats.io/api` — 404
+- `api.tensorplex.ai` — 404  
+- `x.taostats.io` — No response
+- `bittensor.api.subscan.io` — 404
+- Blockchair — Rate limited
+
+**What works**: Direct Subtensor RPC via `@polkadot/api`
+
+**Solution** (`bittensor.ts`):
 ```typescript
-// bittensor.ts connects to:
-wss://entrypoint-finney.opentensor.ai:443
+// Connect via WebSocket to Subtensor
+const SUBTENSOR_WS = 'wss://entrypoint-finney.opentensor.ai:443';
+const api = await ApiPromise.create({ provider: new WsProvider(SUBTENSOR_WS) });
+const accountInfo = await api.query.system.account(address);
 ```
+
+**Why @polkadot/api**: Handles SS58 address decoding and SCALE encoding automatically. Pure JS implementation of blake2b-128 hash doesn't work because Node.js `crypto.createHash('blake2b512')` truncated ≠ proper `blake2b(digestSize=16)`.
 
 ### 6. Dashboard Stats Don't Match Chart
 **Problem**: Quick stats show different value than chart.
