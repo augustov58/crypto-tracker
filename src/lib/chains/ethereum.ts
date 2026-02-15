@@ -39,6 +39,9 @@ const TOKEN_REGISTRY: Record<string, { coingeckoId: string; chain: Chain[] }> = 
   '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9': { coingeckoId: 'aave', chain: ['ethereum'] },
   // wQUIL (Quilibrium)
   '0x8143182a775c54578c8b7b3ef77982498866945d': { coingeckoId: 'wrapped-quil', chain: ['ethereum'] },
+  // wstETH (Lido Wrapped Staked ETH)
+  '0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0': { coingeckoId: 'wrapped-steth', chain: ['ethereum'] },
+  '0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452': { coingeckoId: 'superbridge-bridged-wsteth-base', chain: ['base'] },
   // Base tokens
   '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913': { coingeckoId: 'usd-coin', chain: ['base'] },
   // Arbitrum tokens  

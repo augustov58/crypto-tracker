@@ -45,7 +45,7 @@ function ss58ToHex(address: string): string | null {
 }
 
 /**
- * Fetch TAO balance using Subtensor RPC
+ * Fetch TAO balance using multiple methods
  */
 export async function fetchBalances(address: string): Promise<TokenBalance[]> {
   const config = CHAIN_CONFIGS.bittensor;
@@ -56,8 +56,13 @@ export async function fetchBalances(address: string): Promise<TokenBalance[]> {
 
   return withRetry(async () => {
     try {
-      // Try fetching via RPC state query
-      const balance = await fetchViaRpc(address);
+      // Try Taostats API first (most reliable)
+      let balance = await fetchViaTaostats(address);
+      
+      // Fallback to RPC if Taostats fails
+      if (balance === null) {
+        balance = await fetchViaRpc(address);
+      }
       
       if (balance !== null && balance > 0) {
         return [{
@@ -76,6 +81,34 @@ export async function fetchBalances(address: string): Promise<TokenBalance[]> {
       return [];
     }
   });
+}
+
+/**
+ * Fetch balance via Taostats API
+ */
+async function fetchViaTaostats(address: string): Promise<number | null> {
+  try {
+    const response = await fetch(`https://taostats.io/api/account/${address}`, {
+      headers: { 'Accept': 'application/json' },
+    });
+    
+    if (!response.ok) {
+      return null;
+    }
+    
+    const data = await response.json();
+    // Taostats returns balance in RAO (1 TAO = 1e9 RAO)
+    if (data.balance !== undefined) {
+      return data.balance / RAO_PER_TAO;
+    }
+    if (data.free !== undefined) {
+      return parseFloat(data.free) / RAO_PER_TAO;
+    }
+    return null;
+  } catch (e) {
+    console.warn('Taostats API failed:', e);
+    return null;
+  }
 }
 
 async function fetchViaRpc(address: string): Promise<number | null> {
