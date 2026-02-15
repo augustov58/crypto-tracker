@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase, DbWallet } from '@/lib/supabase';
 import { fetchBalancesByChain, Chain, TokenBalance } from '@/lib/chains';
 import { fetchPrices, PriceMap } from '@/lib/prices/coingecko';
+import { ZerionClient, transformZerionPositions } from '@/lib/defi/zerion';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -192,12 +193,49 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 7. Create aggregated snapshot
+    // 7. Fetch DeFi positions via Zerion
+    let defiUsd = 0;
+    try {
+      // Get Zerion API key
+      const zerionKey = process.env.ZERION_API_KEY || await (async () => {
+        const { data } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'zerion_api_key')
+          .single();
+        return data?.value;
+      })();
+
+      if (zerionKey) {
+        const zerionClient = new ZerionClient(zerionKey);
+        const uniqueEvmAddresses = [...new Set(
+          (wallets as DbWallet[])
+            .filter(w => w.address.startsWith('0x'))
+            .map(w => w.address.toLowerCase())
+        )];
+
+        for (const address of uniqueEvmAddresses) {
+          try {
+            const positions = await zerionClient.getDefiPositions(address);
+            const transformed = transformZerionPositions(positions);
+            const addressDefiTotal = transformed.reduce((sum, p) => sum + p.netUsdValue, 0);
+            defiUsd += addressDefiTotal;
+          } catch (err) {
+            console.error(`[Cron] Zerion error for ${address}:`, err);
+          }
+        }
+        console.log(`[Cron] DeFi total: $${defiUsd.toFixed(2)}`);
+      }
+    } catch (err) {
+      console.error('[Cron] Failed to fetch DeFi positions:', err);
+    }
+
+    // 8. Create aggregated snapshot
     const { data: snapshot, error: snapshotError } = await supabase
       .from('snapshots')
       .upsert({
-        total_usd: totalUsd.toString(),
-        defi_usd: '0', // DeFi positions would be added later
+        total_usd: (totalUsd + defiUsd).toString(),
+        defi_usd: defiUsd.toString(),
         token_count: tokenCount,
         snapshot_at: snapshotAt,
       }, {
@@ -214,13 +252,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log(`[Cron] Snapshot complete: $${totalUsd.toFixed(2)} across ${tokenCount} tokens`);
+    console.log(`[Cron] Snapshot complete: $${(totalUsd + defiUsd).toFixed(2)} (tokens: $${totalUsd.toFixed(2)}, DeFi: $${defiUsd.toFixed(2)}) across ${tokenCount} tokens`);
 
     return NextResponse.json({
       success: true,
       snapshot: {
         id: snapshot.id,
-        totalUsd,
+        totalUsd: totalUsd + defiUsd,
+        tokenUsd: totalUsd,
+        defiUsd,
         tokenCount,
         snapshotAt,
       },
