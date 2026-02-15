@@ -214,14 +214,41 @@ export async function GET(request: NextRequest) {
             .map(w => w.address.toLowerCase())
         )];
 
-        for (const address of uniqueEvmAddresses) {
+        // Helper for delay
+        const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+        for (let i = 0; i < uniqueEvmAddresses.length; i++) {
+          const address = uniqueEvmAddresses[i];
+          
+          // Add 5s delay between addresses to avoid rate limiting (except first)
+          if (i > 0) {
+            await delay(5000);
+          }
+          
           try {
             const positions = await zerionClient.getDefiPositions(address);
             const transformed = transformZerionPositions(positions);
             const addressDefiTotal = transformed.reduce((sum, p) => sum + p.netUsdValue, 0);
             defiUsd += addressDefiTotal;
+            console.log(`[Cron] DeFi for ${address.slice(0, 10)}...: $${addressDefiTotal.toFixed(2)}`);
           } catch (err) {
-            console.error(`[Cron] Zerion error for ${address}:`, err);
+            // Check if rate limited, wait and retry once
+            const errMsg = err instanceof Error ? err.message : String(err);
+            if (errMsg.includes('429') || errMsg.includes('rate')) {
+              console.log(`[Cron] Rate limited for ${address}, waiting 10s and retrying...`);
+              await delay(10000);
+              try {
+                const positions = await zerionClient.getDefiPositions(address);
+                const transformed = transformZerionPositions(positions);
+                const addressDefiTotal = transformed.reduce((sum, p) => sum + p.netUsdValue, 0);
+                defiUsd += addressDefiTotal;
+                console.log(`[Cron] DeFi retry success for ${address.slice(0, 10)}...: $${addressDefiTotal.toFixed(2)}`);
+              } catch (retryErr) {
+                console.error(`[Cron] Zerion retry failed for ${address}:`, retryErr);
+              }
+            } else {
+              console.error(`[Cron] Zerion error for ${address}:`, err);
+            }
           }
         }
         console.log(`[Cron] DeFi total: $${defiUsd.toFixed(2)}`);
