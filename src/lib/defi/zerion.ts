@@ -72,6 +72,7 @@ export interface DefiPosition {
     amount: number;
     usdValue: number;
     logo: string | null;
+    isEstimated?: boolean; // True if value was estimated (e.g., stablecoin vaults)
   }>;
   rewards?: Array<{
     symbol: string;
@@ -86,6 +87,7 @@ export interface DefiPosition {
   netUsdValue: number;
   assetUsdValue: number;
   debtUsdValue: number;
+  hasUnpricedTokens?: boolean; // True if any tokens couldn't be priced
 }
 
 export class ZerionClient {
@@ -257,6 +259,29 @@ function detectVaultToken(name: string, symbol: string): { protocol: string; typ
 }
 
 /**
+ * Stablecoin patterns for estimating vault values
+ * If a vault has these in the name/symbol and has no price, assume ~1:1 USD value
+ */
+const STABLECOIN_PATTERNS = [
+  /USDC/i,
+  /USDT/i,
+  /DAI/i,
+  /FRAX/i,
+  /LUSD/i,
+  /crvUSD/i,
+  /GHO/i,
+  /USD\+/i,
+  /sUSD/i,
+];
+
+/**
+ * Check if token name/symbol suggests it's a stablecoin vault
+ */
+function isStablecoinVault(name: string, symbol: string): boolean {
+  return STABLECOIN_PATTERNS.some(p => p.test(name) || p.test(symbol));
+}
+
+/**
  * Transform Zerion positions into our unified DeFi format
  * Now includes vault token detection for positions classified as "wallet"
  */
@@ -320,14 +345,34 @@ export function transformZerionPositions(positions: ZerionPosition[]): DefiPosit
     let assetValue = 0;
     let debtValue = 0;
     
+    let hasUnpriced = false;
+    
     for (const pos of groupPositions) {
       const attr = pos.attributes;
+      
+      // Determine USD value - estimate for stablecoin vaults if Zerion returns null
+      let usdValue = attr.value;
+      let isEstimated = false;
+      
+      if (usdValue === null || usdValue === 0) {
+        // Check if this looks like a stablecoin vault
+        if (isStablecoinVault(attr.fungible_info.name, attr.fungible_info.symbol)) {
+          // Assume ~1:1 USD value for stablecoin vaults
+          usdValue = attr.quantity.float;
+          isEstimated = true;
+        } else {
+          usdValue = 0;
+          hasUnpriced = true;
+        }
+      }
+      
       const token = {
         symbol: attr.fungible_info.symbol,
         name: attr.fungible_info.name,
         amount: attr.quantity.float,
-        usdValue: attr.value || 0,
+        usdValue: usdValue,
         logo: attr.fungible_info.icon?.url || null,
+        isEstimated,
       };
       
       if (attr.position_type === 'borrowed') {
@@ -370,10 +415,14 @@ export function transformZerionPositions(positions: ZerionPosition[]): DefiPosit
       netUsdValue: assetValue - debtValue,
       assetUsdValue: assetValue,
       debtUsdValue: debtValue,
+      hasUnpricedTokens: hasUnpriced,
     });
   }
   
-  return result.filter(p => p.netUsdValue > 0.01).sort((a, b) => b.netUsdValue - a.netUsdValue);
+  // Keep positions that either have value > $0.01 OR have meaningful token amounts
+  return result
+    .filter(p => p.netUsdValue > 0.01 || p.tokens.some(t => t.amount > 0.01))
+    .sort((a, b) => b.netUsdValue - a.netUsdValue);
 }
 
 /**

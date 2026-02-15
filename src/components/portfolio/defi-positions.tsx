@@ -126,8 +126,11 @@ export function DefiPositions() {
                           <span className="font-mono">
                             {token.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {token.symbol}
                           </span>
-                          <span className="text-muted-foreground">
-                            ${token.usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          <span className={token.isEstimated ? "text-amber-500" : "text-muted-foreground"}>
+                            {token.isEstimated && "~"}${token.usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            {token.isEstimated && (
+                              <span className="text-xs ml-1" title="Estimated based on stablecoin assumption">(est)</span>
+                            )}
                           </span>
                         </div>
                       ))}
@@ -135,9 +138,13 @@ export function DefiPositions() {
                   </div>
                 </div>
                 <div className="sm:text-right flex sm:flex-col items-center sm:items-end gap-2 sm:gap-0 pl-13 sm:pl-0">
-                  <p className="font-mono font-medium">
+                  <p className={`font-mono font-medium ${position.tokens.some(t => t.isEstimated) ? 'text-amber-500' : ''}`}>
+                    {position.tokens.some(t => t.isEstimated) && "~"}
                     ${position.netUsdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </p>
+                  {position.hasUnpricedTokens && (
+                    <p className="text-xs text-muted-foreground">+ unpriced tokens</p>
+                  )}
                 </div>
               </div>
             </div>

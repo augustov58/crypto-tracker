@@ -58,6 +58,7 @@ export interface DefiPosition {
     amount: number;
     usdValue: number;
     logo: string | null;
+    isEstimated?: boolean;
   }>;
   rewards?: Array<{
     symbol: string;
@@ -72,6 +73,7 @@ export interface DefiPosition {
   netUsdValue: number;
   assetUsdValue: number;
   debtUsdValue: number;
+  hasUnpricedTokens?: boolean;
 }
 
 export class DebankClient {
