@@ -107,39 +107,39 @@ export function QuickStats() {
   const isPositive = stats.change24hPercent >= 0;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="total-value">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" data-testid="total-value">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Total Portfolio Value
+        <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
+            Portfolio Value
           </CardTitle>
-          <Wallet className="h-4 w-4 text-muted-foreground" />
+          <Wallet className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            ${stats.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className="text-lg sm:text-2xl font-bold truncate">
+            ${stats.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </div>
           {stats.change24h !== 0 && (
-            <div className={`flex items-center text-sm ${isPositive ? "text-green-500" : "text-red-500"}`}>
-              {isPositive ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
-              {isPositive ? "+" : ""}{stats.change24hPercent.toFixed(2)}% (${Math.abs(stats.change24h).toLocaleString(undefined, { maximumFractionDigits: 2 })})
+            <div className={`flex items-center text-xs sm:text-sm ${isPositive ? "text-green-500" : "text-red-500"}`}>
+              {isPositive ? <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 mr-1 flex-shrink-0" /> : <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 mr-1 flex-shrink-0" />}
+              <span className="truncate">{isPositive ? "+" : ""}{stats.change24hPercent.toFixed(1)}%</span>
             </div>
           )}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
             DeFi Value
           </CardTitle>
-          <PiggyBank className="h-4 w-4 text-muted-foreground" />
+          <PiggyBank className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
-            ${stats.defiValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className="text-lg sm:text-2xl font-bold truncate">
+            ${stats.defiValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </div>
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs sm:text-sm text-muted-foreground truncate">
             {stats.defiValue > 0 
               ? `${((stats.defiValue / stats.totalValue) * 100).toFixed(1)}% of portfolio` 
               : "0.0% of portfolio"}
@@ -148,34 +148,34 @@ export function QuickStats() {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
             Total P&L
           </CardTitle>
-          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className={`text-2xl font-bold ${stats.totalPnl >= 0 ? "text-green-500" : "text-red-500"}`}>
-            {stats.totalPnl >= 0 ? "+" : ""}${stats.totalPnl.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className={`text-lg sm:text-2xl font-bold truncate ${stats.totalPnl >= 0 ? "text-green-500" : "text-red-500"}`}>
+            {stats.totalPnl >= 0 ? "+" : ""}${stats.totalPnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </div>
-          <div className={`text-sm ${stats.totalPnlPercent >= 0 ? "text-green-500" : "text-red-500"}`}>
-            {stats.totalPnlPercent >= 0 ? "+" : ""}{stats.totalPnlPercent.toFixed(2)}% all time
+          <div className={`text-xs sm:text-sm truncate ${stats.totalPnlPercent >= 0 ? "text-green-500" : "text-red-500"}`}>
+            {stats.totalPnlPercent >= 0 ? "+" : ""}{stats.totalPnlPercent.toFixed(1)}% all time
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
             Assets & Wallets
           </CardTitle>
-          <Coins className="h-4 w-4 text-muted-foreground" />
+          <Coins className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground flex-shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className="text-lg sm:text-2xl font-bold">
             {stats.tokenCount} tokens
           </div>
-          <div className="text-sm text-muted-foreground">
+          <div className="text-xs sm:text-sm text-muted-foreground">
             across {stats.walletCount} wallets
           </div>
         </CardContent>

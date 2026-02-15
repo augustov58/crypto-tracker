@@ -143,14 +143,15 @@ export function PortfolioValueChart() {
 
   return (
     <Card data-testid="portfolio-chart">
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <CardTitle>Portfolio Value</CardTitle>
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
           {timeRanges.map((range) => (
             <Button
               key={range.value}
               variant={timeRange === range.value ? "default" : "ghost"}
               size="sm"
+              className="px-2 sm:px-3 text-xs sm:text-sm"
               onClick={() => setTimeRange(range.value)}
               data-testid={`range-${range.value}`}
             >
