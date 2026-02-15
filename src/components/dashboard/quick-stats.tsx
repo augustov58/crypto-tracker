@@ -25,24 +25,45 @@ export function QuickStats() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const [portfolioRes, walletsRes, defiRes] = await Promise.all([
+        // Fetch from snapshots (includes DeFi) + portfolio (for 24h change) + wallets
+        const [snapshotsRes, portfolioRes, walletsRes] = await Promise.all([
+          fetch("/api/snapshots?from=" + new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()),
           fetch("/api/portfolio"),
           fetch("/api/wallets"),
-          fetch("/api/defi").catch(() => null), // DeFi is optional
         ]);
 
-        if (!portfolioRes.ok || !walletsRes.ok) {
+        if (!snapshotsRes.ok || !portfolioRes.ok || !walletsRes.ok) {
           throw new Error("Failed to fetch data");
         }
 
+        const snapshots = await snapshotsRes.json();
         const portfolio: PortfolioResponse = await portfolioRes.json();
         const { wallets } = await walletsRes.json();
         
-        // Fetch DeFi value (optional - may not be configured)
-        let defiValue = 0;
-        if (defiRes?.ok) {
-          const defi = await defiRes.json();
-          defiValue = defi.totalUsd || 0;
+        // Use latest snapshot for total value (includes DeFi)
+        const latestSnapshot = snapshots.snapshots[snapshots.snapshots.length - 1];
+        const totalValue = latestSnapshot?.totalUsd || portfolio.totalUsd;
+        const defiValue = latestSnapshot?.defiUsd || 0;
+
+        // Calculate 24h change from snapshots if we have enough data
+        let change24h = portfolio.change24hUsd || 0;
+        let change24hPercent = portfolio.change24hPercent || 0;
+        
+        if (snapshots.snapshots.length >= 2) {
+          const now = new Date();
+          const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          
+          // Find snapshot closest to 24h ago
+          const oldSnapshot = snapshots.snapshots.find((s: { timestamp: string }) => 
+            new Date(s.timestamp) <= oneDayAgo
+          ) || snapshots.snapshots[0];
+          
+          if (oldSnapshot && latestSnapshot) {
+            change24h = latestSnapshot.totalUsd - oldSnapshot.totalUsd;
+            change24hPercent = oldSnapshot.totalUsd > 0 
+              ? ((latestSnapshot.totalUsd - oldSnapshot.totalUsd) / oldSnapshot.totalUsd) * 100 
+              : 0;
+          }
         }
 
         // Calculate total PnL from tokens with cost basis
@@ -54,14 +75,11 @@ export function QuickStats() {
             totalCostValue += token.totalBalance * token.costBasis;
           }
         }
-
-        // Add DeFi value to total (vault tokens aren't priced by portfolio endpoint)
-        const combinedTotal = portfolio.totalUsd + defiValue;
         
         setStats({
-          totalValue: combinedTotal,
-          change24h: portfolio.change24hUsd || 0,
-          change24hPercent: portfolio.change24hPercent || 0,
+          totalValue,
+          change24h,
+          change24hPercent,
           defiValue,
           totalPnl,
           totalPnlPercent: totalCostValue > 0 ? (totalPnl / totalCostValue) * 100 : 0,
