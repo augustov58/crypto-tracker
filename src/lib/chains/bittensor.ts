@@ -1,51 +1,85 @@
 /**
  * Bittensor (TAO) Balance Fetcher
  * 
- * Uses multiple methods to fetch balance:
- * 1. Direct Subtensor RPC (free balance query)
- * 2. Manual fallback for known addresses
+ * Uses @polkadot/api to connect to Subtensor and fetch balance
  */
 
 import { TokenBalance, CHAIN_CONFIGS, withRetry } from './types';
+import { ApiPromise, WsProvider } from '@polkadot/api';
 
-const SUBTENSOR_RPC = 'https://entrypoint-finney.opentensor.ai';
+const SUBTENSOR_WS = 'wss://entrypoint-finney.opentensor.ai:443';
 const TAO_DECIMALS = 9;
-const RAO_PER_TAO = 1e9;
 
-// SS58 address validation (Bittensor uses SS58 prefix 42)
+// Connection cache to avoid reconnecting on every request
+let apiCache: ApiPromise | null = null;
+let connectionPromise: Promise<ApiPromise> | null = null;
+
+/**
+ * SS58 address validation (Bittensor uses SS58 prefix 42)
+ */
 function isValidTaoAddress(address: string): boolean {
-  // Bittensor addresses start with 5 and are 48 characters
   return /^5[a-zA-Z0-9]{47}$/.test(address);
 }
 
 /**
- * Convert SS58 address to hex public key
- * This is a simplified version - for production use @polkadot/util-crypto
+ * Get or create a cached API connection
  */
-function ss58ToHex(address: string): string | null {
-  // Base58 alphabet
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+async function getApi(): Promise<ApiPromise> {
+  if (apiCache?.isConnected) {
+    return apiCache;
+  }
   
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+  
+  connectionPromise = (async () => {
+    const provider = new WsProvider(SUBTENSOR_WS);
+    const api = await ApiPromise.create({ provider });
+    apiCache = api;
+    connectionPromise = null;
+    return api;
+  })();
+  
+  return connectionPromise;
+}
+
+interface AccountData {
+  free: { toString(): string };
+  reserved: { toString(): string };
+}
+
+interface AccountInfo {
+  data: AccountData;
+}
+
+/**
+ * Fetch TAO balance for an address using polkadot API
+ */
+async function fetchViaApi(address: string): Promise<number | null> {
   try {
-    let result = BigInt(0);
-    for (const char of address) {
-      const index = ALPHABET.indexOf(char);
-      if (index === -1) return null;
-      result = result * BigInt(58) + BigInt(index);
-    }
+    const api = await getApi();
     
-    // Convert to hex, remove SS58 prefix and checksum
-    let hex = result.toString(16).padStart(70, '0');
-    // Extract the 32-byte public key (skip prefix byte, take 64 hex chars)
-    const pubKey = hex.slice(2, 66);
-    return '0x' + pubKey;
-  } catch {
+    // Query the account info
+    const accountInfo = await api.query.system.account(address) as unknown as AccountInfo;
+    
+    // Extract free and reserved balance
+    const data = accountInfo.data;
+    const free = BigInt(data.free.toString());
+    const reserved = BigInt(data.reserved.toString());
+    
+    const totalRao = free + reserved;
+    const totalTao = Number(totalRao) / Math.pow(10, TAO_DECIMALS);
+    
+    return totalTao;
+  } catch (error) {
+    console.error('Polkadot API query error:', error);
     return null;
   }
 }
 
 /**
- * Fetch TAO balance using multiple methods
+ * Fetch TAO balance for an address
  */
 export async function fetchBalances(address: string): Promise<TokenBalance[]> {
   const config = CHAIN_CONFIGS.bittensor;
@@ -55,118 +89,36 @@ export async function fetchBalances(address: string): Promise<TokenBalance[]> {
   }
 
   return withRetry(async () => {
-    try {
-      // Try Taostats API first (most reliable)
-      let balance = await fetchViaTaostats(address);
-      
-      // Fallback to RPC if Taostats fails
-      if (balance === null) {
-        balance = await fetchViaRpc(address);
-      }
-      
-      if (balance !== null && balance > 0) {
-        return [{
-          tokenId: config.nativeToken.coingeckoId,
-          symbol: config.nativeToken.symbol,
-          name: config.nativeToken.name,
-          balance: balance,
-          decimals: config.nativeToken.decimals,
-          chain: 'bittensor',
-        }];
-      }
-      
-      return [];
-    } catch (error) {
-      console.error('Bittensor fetch error:', error);
-      return [];
+    const balance = await fetchViaApi(address);
+    
+    if (balance !== null && balance > 0) {
+      return [{
+        tokenId: config.nativeToken.coingeckoId,
+        symbol: config.nativeToken.symbol,
+        name: config.nativeToken.name,
+        balance: balance,
+        decimals: config.nativeToken.decimals,
+        chain: 'bittensor',
+      }];
     }
+    
+    return [];
   });
 }
 
 /**
- * Known TAO balances (fallback when API fails)
- * TODO: Replace with working Bittensor API integration
+ * Disconnect from API (call on shutdown)
  */
-const KNOWN_TAO_BALANCES: Record<string, number> = {
-  '5C78j4N77AfmUbYAf6zjnkxSi8Ra5xuGtdTzdqgEtbhFEsCf': 30.24073193,
-};
-
-/**
- * Fetch balance via multiple APIs with fallback to known balances
- */
-async function fetchViaTaostats(address: string): Promise<number | null> {
-  // Try TensorPlex API
-  try {
-    const response = await fetch(`https://api.tensorplex.ai/api/wallets/${address}/balance`, {
-      headers: { 'Accept': 'application/json' },
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.balance !== undefined) {
-        return parseFloat(data.balance);
-      }
-    }
-  } catch (e) {
-    console.warn('TensorPlex API failed:', e);
+export async function disconnect(): Promise<void> {
+  if (apiCache) {
+    await apiCache.disconnect();
+    apiCache = null;
   }
-
-  // Fallback to known balances if API fails
-  if (KNOWN_TAO_BALANCES[address] !== undefined) {
-    console.log(`Using cached TAO balance for ${address}`);
-    return KNOWN_TAO_BALANCES[address];
-  }
-  
-  return null;
-}
-
-async function fetchViaRpc(address: string): Promise<number | null> {
-  // Use runtime API to get account balance
-  // The System.Account storage requires properly encoded key
-  
-  try {
-    // Try using runtime call for balance
-    const response = await fetch(SUBTENSOR_RPC, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'author_rotateKeys',
-        params: []
-      }),
-    });
-
-    // If RPC is responsive, try state query approach
-    if (response.ok) {
-      return await fetchViaStateQuery(address);
-    }
-  } catch (e) {
-    console.warn('RPC health check failed:', e);
-  }
-
-  return null;
-}
-
-async function fetchViaStateQuery(address: string): Promise<number | null> {
-  // For Substrate chains, we need to:
-  // 1. Hash the storage prefix: System.Account
-  // 2. Hash the account id
-  // 3. Query state_getStorage
-  
-  // This is complex without @polkadot libraries
-  // For now, return null and let the cron handle it via manual updates
-  
-  // TODO: Implement proper Substrate storage key encoding
-  // or use @polkadot/api in a separate worker
-  
-  console.log(`Bittensor RPC query not fully implemented for ${address}`);
-  return null;
 }
 
 /**
  * Get detailed stake breakdown by subnet
- * Note: Requires working Taostats API or direct RPC
+ * Note: Would require additional RPC queries to SubtensorModule storage
  */
 export async function fetchStakesBySubnet(address: string): Promise<Array<{
   netuid: number;
@@ -177,7 +129,6 @@ export async function fetchStakesBySubnet(address: string): Promise<Array<{
     throw new Error(`Invalid Bittensor address format: ${address}`);
   }
 
-  // Staking info requires either Taostats API or complex RPC queries
-  // Return empty for now
+  // TODO: Implement stake queries via SubtensorModule.Stake storage
   return [];
 }
