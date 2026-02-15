@@ -55,11 +55,14 @@ export function QuickStats() {
           }
         }
 
+        // Add DeFi value to total (vault tokens aren't priced by portfolio endpoint)
+        const combinedTotal = portfolio.totalUsd + defiValue;
+        
         setStats({
-          totalValue: portfolio.totalUsd,
+          totalValue: combinedTotal,
           change24h: portfolio.change24hUsd || 0,
           change24hPercent: portfolio.change24hPercent || 0,
-          defiValue, // DeFi positions from DeBank (shown separately, not summed)
+          defiValue,
           totalPnl,
           totalPnlPercent: totalCostValue > 0 ? (totalPnl / totalCostValue) * 100 : 0,
           tokenCount: portfolio.tokens.length,
@@ -137,7 +140,9 @@ export function QuickStats() {
             ${stats.defiValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           </div>
           <div className="text-sm text-muted-foreground">
-            {stats.defiValue > 0 ? "Included in portfolio" : "0.0% of portfolio"}
+            {stats.defiValue > 0 
+              ? `${((stats.defiValue / stats.totalValue) * 100).toFixed(1)}% of portfolio` 
+              : "0.0% of portfolio"}
           </div>
         </CardContent>
       </Card>
