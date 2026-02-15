@@ -8,6 +8,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase';
 
+/**
+ * Tokens to exclude from portfolio because they're DeFi vault tokens
+ * (counted in DeFi positions instead to avoid double-counting)
+ */
+const DEFI_VAULT_SYMBOLS = new Set([
+  'WSTETH', 'wstETH', 'stETH',           // Lido
+  'mEDGE', 'mBASIS',                      // Midas
+  'iETHv2', 'iETH',                       // Instadapp
+  'fUSDT', 'fUSDC', 'fETH',               // Fluid
+  'aEthWETH', 'aUSDC', 'aUSDT', 'aDAI',   // Aave
+  'cUSDC', 'cUSDT', 'cDAI', 'cETH',       // Compound
+  'rETH',                                  // Rocket Pool
+  'weETH', 'eETH', 'liquidETH',           // EtherFi
+  'gtusdcf',                               // Gauntlet
+  'crvUSD',                                // Curve
+]);
+
 export interface PortfolioToken {
   tokenId: string;
   symbol: string;
@@ -122,6 +139,11 @@ export async function GET(request: NextRequest) {
     const tokenMap = new Map<string, PortfolioToken>();
 
     for (const balance of balances || []) {
+      // Skip DeFi vault tokens (they're counted in DeFi positions)
+      if (DEFI_VAULT_SYMBOLS.has(balance.symbol)) {
+        continue;
+      }
+
       const wallet = balance.wallets as {
         id: number;
         chain: string;
