@@ -148,25 +148,28 @@ export function ReconciliationSection() {
         key={item.tokenId} 
         className="border rounded-lg p-4 space-y-3"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-sm">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center font-bold text-sm flex-shrink-0">
               {item.symbol.slice(0, 3)}
             </div>
-            <div>
-              <p className="font-medium">{item.symbol}</p>
-              <p className="text-sm text-muted-foreground">
-                Wallet: {formatNumber(item.walletBalance)} 
+            <div className="min-w-0">
+              <p className="font-medium truncate">{item.symbol}</p>
+              <p className="text-sm text-muted-foreground truncate">
+                {formatNumber(item.walletBalance)} 
                 {item.currentPrice && ` • ${formatUsd(item.walletBalance * item.currentPrice)}`}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {getStatusBadge(item.status)}
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="hidden sm:block">
+              {getStatusBadge(item.status)}
+            </div>
             <Button 
               variant="ghost" 
               size="sm"
               onClick={() => toggleExpanded(item.tokenId)}
+              className="h-8 w-8 p-0"
             >
               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
@@ -175,40 +178,42 @@ export function ReconciliationSection() {
 
         {/* Summary row */}
         {item.status !== 'balanced' && (
-          <div className="flex items-center justify-between text-sm bg-muted/50 rounded-md p-3">
-            <div>
-              <span className="text-muted-foreground">Difference: </span>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm bg-muted/50 rounded-md p-3">
+            <div className="min-w-0 flex-1">
+              <span className="text-muted-foreground">Diff: </span>
               <span className={item.difference > 0 ? "text-orange-500 font-medium" : "text-red-500 font-medium"}>
-                {item.difference > 0 ? "+" : ""}{formatNumber(item.difference)} {item.symbol}
+                {item.difference > 0 ? "+" : ""}{formatNumber(item.difference)}
               </span>
               {item.differenceUsd !== null && (
-                <span className="text-muted-foreground ml-2">
+                <span className="text-muted-foreground ml-1">
                   ({formatUsd(Math.abs(item.differenceUsd))})
                 </span>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-shrink-0">
               <Button 
                 size="sm" 
                 variant="outline"
                 onClick={() => handleAddCostBasis(item)}
                 disabled={isProcessing}
+                className="flex-1 sm:flex-none"
               >
-                <Plus className="h-4 w-4 mr-1" />
-                Add Cost
+                <Plus className="h-4 w-4 sm:mr-1" />
+                <span className="hidden sm:inline">Add Cost</span>
               </Button>
               <Button 
                 size="sm" 
                 variant="outline"
                 onClick={() => handleMarkAsZero(item)}
                 disabled={isProcessing}
+                className="flex-1 sm:flex-none"
               >
                 {isProcessing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <X className="h-4 w-4 mr-1" />
-                    $0 Cost
+                    <X className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">$0 Cost</span>
                   </>
                 )}
               </Button>
@@ -219,22 +224,22 @@ export function ReconciliationSection() {
         {/* Expanded details */}
         {isExpanded && (
           <div className="pt-2 border-t space-y-2 text-sm">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-muted-foreground">Wallet Balance</p>
-                <p className="font-mono">{formatNumber(item.walletBalance)} {item.symbol}</p>
+            <div className="grid grid-cols-2 gap-2 sm:gap-4">
+              <div className="min-w-0">
+                <p className="text-muted-foreground text-xs">Wallet</p>
+                <p className="font-mono text-xs sm:text-sm truncate">{formatNumber(item.walletBalance)}</p>
               </div>
-              <div>
-                <p className="text-muted-foreground">Cost Basis Qty</p>
-                <p className="font-mono">{formatNumber(item.costBasisQty)} {item.symbol}</p>
+              <div className="min-w-0">
+                <p className="text-muted-foreground text-xs">Cost Basis</p>
+                <p className="font-mono text-xs sm:text-sm truncate">{formatNumber(item.costBasisQty)}</p>
               </div>
-              <div>
-                <p className="text-muted-foreground">Current Price</p>
-                <p className="font-mono">{item.currentPrice ? formatUsd(item.currentPrice) : "N/A"}</p>
+              <div className="min-w-0">
+                <p className="text-muted-foreground text-xs">Price</p>
+                <p className="font-mono text-xs sm:text-sm">{item.currentPrice ? formatUsd(item.currentPrice) : "N/A"}</p>
               </div>
-              <div>
-                <p className="text-muted-foreground">Difference Value</p>
-                <p className="font-mono">{formatUsd(item.differenceUsd)}</p>
+              <div className="min-w-0">
+                <p className="text-muted-foreground text-xs">Diff Value</p>
+                <p className="font-mono text-xs sm:text-sm">{formatUsd(item.differenceUsd)}</p>
               </div>
             </div>
             
@@ -263,23 +268,23 @@ export function ReconciliationSection() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="min-w-0">
+              <CardTitle className="flex flex-wrap items-center gap-2">
                 Reconciliation
                 {summary && summary.needsAttention + summary.noCostBasis > 0 && (
-                  <Badge variant="destructive" className="ml-2">
-                    {summary.needsAttention + summary.noCostBasis} need attention
+                  <Badge variant="destructive">
+                    {summary.needsAttention + summary.noCostBasis}
                   </Badge>
                 )}
               </CardTitle>
-              <CardDescription>
-                Compare wallet balances with cost basis records
+              <CardDescription className="mt-1">
+                Compare wallet vs cost basis
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" onClick={refetch}>
+            <Button variant="outline" size="sm" onClick={refetch} className="self-start sm:self-auto">
               Refresh
             </Button>
           </div>
