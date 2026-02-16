@@ -1,6 +1,7 @@
 import { CostBasisTable } from "@/components/cost-basis/cost-basis-table";
 import { PnlSummary } from "@/components/cost-basis/pnl-summary";
 import { CSVImport } from "@/components/cost-basis/csv-import";
+import { ReconciliationSection } from "@/components/cost-basis/reconciliation-section";
 
 export default function CostBasisPage() {
   return (
@@ -11,6 +12,7 @@ export default function CostBasisPage() {
       </div>
 
       <PnlSummary />
+      <ReconciliationSection />
       <CostBasisTable />
       <CSVImport />
     </div>

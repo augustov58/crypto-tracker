@@ -42,6 +42,8 @@ interface LotEditorProps {
   tokenId?: string | null;
   existingLot?: { lot: Lot; index: number } | null;
   existingEntries?: CostBasisEntry[];
+  prefillQty?: number | null;
+  prefillSymbol?: string;
 }
 
 export function LotEditor({
@@ -50,6 +52,8 @@ export function LotEditor({
   tokenId,
   existingLot,
   existingEntries = [],
+  prefillQty,
+  prefillSymbol,
 }: LotEditorProps) {
   const { addLot, updateLots } = useCostBasis();
   const [saving, setSaving] = useState(false);
@@ -84,17 +88,29 @@ export function LotEditor({
         setIsSell(existingLot.lot.qty < 0);
       } else {
         // Creating new lot
-        setSelectedTokenId(tokenId || "");
-        setCustomTokenId("");
-        setCustomSymbol("");
+        // Check if tokenId is a known token or if we should use custom
+        const knownToken = COMMON_TOKENS.find(t => t.id === tokenId);
+        const existingEntry = existingEntries.find(e => e.token_id === tokenId);
+        
+        if (tokenId && !knownToken && !existingEntry) {
+          // Unknown token - use custom mode with prefillSymbol
+          setSelectedTokenId("custom");
+          setCustomTokenId(tokenId);
+          setCustomSymbol(prefillSymbol || "");
+        } else {
+          setSelectedTokenId(tokenId || "");
+          setCustomTokenId("");
+          setCustomSymbol("");
+        }
+        
         setDate(new Date().toISOString().split("T")[0]);
-        setQty("");
+        setQty(prefillQty ? prefillQty.toString() : "");
         setPrice("");
         setNotes("");
         setIsSell(false);
       }
     }
-  }, [open, tokenId, existingLot]);
+  }, [open, tokenId, existingLot, prefillQty, prefillSymbol, existingEntries]);
 
   // Get symbol for the selected token
   const getSymbol = (): string => {
