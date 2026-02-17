@@ -42,8 +42,14 @@ const TOKEN_REGISTRY: Record<string, { coingeckoId: string; chain: Chain[] }> = 
   // wstETH (Lido Wrapped Staked ETH)
   '0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0': { coingeckoId: 'wrapped-steth', chain: ['ethereum'] },
   '0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452': { coingeckoId: 'superbridge-bridged-wsteth-base', chain: ['base'] },
+  // BEAM (Gaming)
+  '0x62d0a8458ed7719fdaf978fe5929c6d342b0bfce': { coingeckoId: 'beam-2', chain: ['ethereum'] },
+  // SPX6900
+  '0xe0f63a424a4439cbe457d80e4f4b51ad25b2c56c': { coingeckoId: 'spx6900', chain: ['ethereum'] },
   // Base tokens
   '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913': { coingeckoId: 'usd-coin', chain: ['base'] },
+  '0x50da645f148798f68ef2d7db7c1cb22a6819bb2c': { coingeckoId: 'spx6900', chain: ['base'] },
+  '0x2a66d51407b84b82b5aff3dec4d49f72cbcd322a': { coingeckoId: 'beam-2', chain: ['base'] },
   // Arbitrum tokens  
   '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { coingeckoId: 'usd-coin', chain: ['arbitrum'] },
   '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { coingeckoId: 'tether', chain: ['arbitrum'] },
