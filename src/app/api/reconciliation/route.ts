@@ -33,6 +33,18 @@ export interface ReconciliationResponse {
 // Threshold for considering balanced (0.1% difference)
 const BALANCE_THRESHOLD = 0.001;
 
+// Minimum USD value to show tokens without cost basis (filters dust/spam)
+const MIN_USD_VALUE_FOR_NO_CB = 10;
+
+// Patterns that indicate spam/scam tokens
+const SPAM_PATTERNS = [
+  /https?:\/\//i,           // URLs in symbol
+  /\.com|\.org|\.net|\.io/i, // Domain names
+  /claim|reward|airdrop/i,   // Scam keywords
+  /visit\s+/i,               // "Visit website..."
+  /^0x[a-f0-9]{20,}/i,       // Raw contract addresses as symbols
+];
+
 export async function GET() {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,6 +149,11 @@ export async function GET() {
     // Build reconciliation items
     const items: ReconciliationItem[] = [];
     
+    // Helper to check if symbol looks like spam
+    const isSpamSymbol = (symbol: string): boolean => {
+      return SPAM_PATTERNS.some(pattern => pattern.test(symbol));
+    };
+    
     // Check all tokens that have either wallet balance or cost basis
     for (const tokenId of allTokenIds) {
       const walletData = walletBalances.get(tokenId);
@@ -146,12 +163,29 @@ export async function GET() {
       const costBasisQty = costBasisData?.totalQty || 0;
       const symbol = walletData?.symbol || costBasisData?.symbol || tokenId.toUpperCase();
       const price = priceMap.get(tokenId) || null;
+      const usdValue = price ? walletBalance * price : null;
       
       // Skip tokens with no wallet balance (we only care about tokens we hold)
       if (walletBalance <= 0) continue;
       
       // Skip very small balances (dust)
       if (walletBalance < 0.00001 && (!price || walletBalance * price < 0.01)) continue;
+      
+      // Skip spam tokens: no price, no cost basis, and either:
+      // - Symbol looks like spam, OR
+      // - Value is below threshold (can't determine value without price)
+      const hasCostBasis = costBasisQty > 0;
+      if (!price && !hasCostBasis) {
+        // No price and no cost basis - likely spam unless high potential value
+        if (isSpamSymbol(symbol)) continue;
+        // Skip if we can't determine value (no price) - user can add manually if needed
+        continue;
+      }
+      
+      // Skip tokens with price but very low value and no cost basis
+      if (usdValue !== null && usdValue < MIN_USD_VALUE_FOR_NO_CB && !hasCostBasis) {
+        continue;
+      }
       
       const difference = walletBalance - costBasisQty;
       const differencePercent = costBasisQty > 0 
