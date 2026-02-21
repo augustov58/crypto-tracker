@@ -24,9 +24,37 @@ import { useCostBasis } from "@/lib/hooks/use-cost-basis";
 import { LotEditor } from "./lot-editor";
 import type { Lot } from "@/lib/pnl/types";
 
+// Spam token patterns to filter out
+const SPAM_PATTERNS = [
+  /https?:\/\//i,           // URLs in symbol
+  /\.com|\.org|\.net|\.io/i, // Domain names
+  /claim|reward|airdrop/i,   // Scam keywords
+  /visit\s+/i,               // "Visit website..."
+  /^0x[a-f0-9]{20,}/i,       // Raw contract addresses as symbols
+];
+
+const isSpamToken = (item: ReconciliationItem): boolean => {
+  // If it has a price, it's likely legit
+  if (item.currentPrice !== null) return false;
+  // If symbol matches spam patterns
+  if (SPAM_PATTERNS.some(p => p.test(item.symbol))) return true;
+  // No price = can't verify, treat as spam unless has cost basis
+  return item.costBasisQty === 0;
+};
+
 export function ReconciliationSection() {
-  const { items, summary, loading, error, refetch } = useReconciliation();
+  const { items: rawItems, summary: rawSummary, loading, error, refetch } = useReconciliation();
   const { addLot, entries: costBasisEntries, refetch: refetchCostBasis } = useCostBasis();
+  
+  // Filter out spam tokens client-side
+  const items = rawItems.filter(item => !isSpamToken(item));
+  const summary = rawSummary ? {
+    ...rawSummary,
+    totalTokens: items.length,
+    noCostBasis: items.filter(i => i.status === 'no_cost_basis').length,
+    needsAttention: items.filter(i => i.status === 'over' || i.status === 'under').length,
+    balanced: items.filter(i => i.status === 'balanced').length,
+  } : null;
   
   const [expandedTokens, setExpandedTokens] = useState<Set<string>>(new Set());
   const [showBalanced, setShowBalanced] = useState(false);
