@@ -13,6 +13,17 @@ interface DefiResponse {
   source: 'zerion' | 'debank' | 'token-detection';
 }
 
+// ETH-based tokens that should show ETH equivalent
+const ETH_BASED_TOKENS = [
+  'wsteth', 'steth', 'liquideth', 'eeth', 'weeth', 
+  'iethv2', 'ieth', 'aethweth', 'reth', 'cbeth',
+  'meth', 'sweth', 'oeth', 'frxeth', 'sfrxeth'
+];
+
+function isEthBasedToken(symbol: string): boolean {
+  return ETH_BASED_TOKENS.includes(symbol.toLowerCase());
+}
+
 const typeColors: Record<string, string> = {
   staking: "bg-green-500/10 text-green-500",
   lending: "bg-blue-500/10 text-blue-500",
@@ -23,19 +34,32 @@ const typeColors: Record<string, string> = {
 export function DefiPositions() {
   const [positions, setPositions] = useState<DefiPosition[]>([]);
   const [totalDefi, setTotalDefi] = useState(0);
+  const [ethPrice, setEthPrice] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchDefi() {
       try {
-        const response = await fetch("/api/defi");
-        if (!response.ok) {
+        // Fetch DeFi positions and ETH price in parallel
+        const [defiResponse, priceResponse] = await Promise.all([
+          fetch("/api/defi"),
+          fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd")
+        ]);
+        
+        if (!defiResponse.ok) {
           throw new Error("Failed to fetch DeFi positions");
         }
-        const data: DefiResponse = await response.json();
+        
+        const data: DefiResponse = await defiResponse.json();
         setPositions(data.positions);
         setTotalDefi(data.totalUsd);
+        
+        // Set ETH price if available
+        if (priceResponse.ok) {
+          const priceData = await priceResponse.json();
+          setEthPrice(priceData.ethereum?.usd || null);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {
@@ -45,6 +69,13 @@ export function DefiPositions() {
 
     fetchDefi();
   }, []);
+  
+  // Calculate ETH equivalent for a token
+  const getEthEquivalent = (usdValue: number): string | null => {
+    if (!ethPrice || ethPrice <= 0) return null;
+    const ethAmount = usdValue / ethPrice;
+    return ethAmount.toFixed(4);
+  };
 
   if (loading) {
     return (
@@ -121,19 +152,27 @@ export function DefiPositions() {
                       </Badge>
                     </div>
                     <div className="mt-2 space-y-1">
-                      {position.tokens.map((token, i) => (
-                        <div key={i} className="flex items-center gap-2 sm:gap-4 text-sm flex-wrap">
-                          <span className="font-mono">
-                            {token.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {token.symbol}
-                          </span>
-                          <span className={token.isEstimated ? "text-amber-500" : "text-muted-foreground"}>
-                            {token.isEstimated && "~"}${token.usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                            {token.isEstimated && (
-                              <span className="text-xs ml-1" title="Estimated based on stablecoin assumption">(est)</span>
+                      {position.tokens.map((token, i) => {
+                        const ethEquiv = isEthBasedToken(token.symbol) ? getEthEquivalent(token.usdValue) : null;
+                        return (
+                          <div key={i} className="flex items-center gap-2 sm:gap-4 text-sm flex-wrap">
+                            <span className="font-mono">
+                              {token.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} {token.symbol}
+                            </span>
+                            {ethEquiv && (
+                              <span className="text-blue-400 font-mono">
+                                ≈ {ethEquiv} ETH
+                              </span>
                             )}
-                          </span>
-                        </div>
-                      ))}
+                            <span className={token.isEstimated ? "text-amber-500" : "text-muted-foreground"}>
+                              {token.isEstimated && "~"}${token.usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              {token.isEstimated && (
+                                <span className="text-xs ml-1" title="Estimated based on stablecoin assumption">(est)</span>
+                              )}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
