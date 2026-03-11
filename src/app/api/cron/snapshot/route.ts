@@ -18,6 +18,23 @@ import { ZerionClient, transformZerionPositions } from '@/lib/defi/zerion';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
+/**
+ * Tokens to exclude from portfolio total because they're DeFi vault tokens
+ * (already counted in DeFi positions via Zerion to avoid double-counting)
+ */
+const DEFI_VAULT_SYMBOLS = new Set([
+  'WSTETH', 'wstETH', 'stETH',           // Lido
+  'mEDGE', 'mBASIS',                      // Midas
+  'iETHv2', 'iETH',                       // Instadapp
+  'fUSDT', 'fUSDC', 'fETH',               // Fluid
+  'aEthWETH', 'aUSDC', 'aUSDT', 'aDAI',   // Aave
+  'cUSDC', 'cUSDT', 'cDAI', 'cETH',       // Compound
+  'rETH',                                  // Rocket Pool
+  'weETH', 'eETH', 'liquidETH',           // EtherFi
+  'gtusdcf',                               // Gauntlet
+  'crvUSD',                                // Curve
+]);
+
 interface ChainFetchResult {
   wallet: DbWallet;
   balances: TokenBalance[];
@@ -165,7 +182,8 @@ export async function GET(request: NextRequest) {
       const price = prices[balance.tokenId];
       const usdValue = price ? balance.balance * price.usd : null;
 
-      if (usdValue !== null) {
+      // Only add to totalUsd if NOT a DeFi vault token (those are counted in defiUsd)
+      if (usdValue !== null && !DEFI_VAULT_SYMBOLS.has(balance.symbol)) {
         totalUsd += usdValue;
       }
       tokenCount++;
