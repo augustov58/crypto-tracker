@@ -194,6 +194,16 @@ export function TokenTable() {
             <span className="text-muted-foreground">-</span>
           )}
         </TableCell>
+        <TableCell className="text-right font-mono">
+          {token.costBasis !== undefined ? (
+            `$${token.costBasis.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 6,
+            })}`
+          ) : (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </TableCell>
         <TableCell className="text-right">
           {token.unrealizedPnl !== undefined ? (
             <div
@@ -222,7 +232,7 @@ export function TokenTable() {
       </TableRow>
       {expandedToken === token.tokenId && token.walletBreakdown.length > 0 && (
         <TableRow className="bg-accent/20">
-          <TableCell colSpan={7} className="py-4">
+          <TableCell colSpan={8} className="py-4">
             <div className="pl-12">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-medium">Per-Wallet Breakdown</p>
@@ -307,6 +317,7 @@ export function TokenTable() {
               <TableHead className="text-right">Price</TableHead>
               <TableHead className="text-right">Value</TableHead>
               <TableHead className="text-right">24h</TableHead>
+              <TableHead className="text-right">Avg Cost</TableHead>
               <TableHead className="text-right">P&L</TableHead>
             </TableRow>
           </TableHeader>
