@@ -15,6 +15,7 @@ import { getServerSupabase, DbWallet } from '@/lib/supabase';
 import { fetchBalancesByChain, Chain, TokenBalance } from '@/lib/chains';
 import { fetchPrices, PriceMap } from '@/lib/prices/coingecko';
 import { ZerionClient, transformZerionPositions } from '@/lib/defi/zerion';
+import { getLlamaLendPosition, getWstethPrice, LLAMA_MARKETS } from '@/lib/defi/llamalend';
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
@@ -245,7 +246,7 @@ export async function GET(request: NextRequest) {
           
           try {
             const positions = await zerionClient.getDefiPositions(address);
-            const transformed = transformZerionPositions(positions);
+            const transformed = transformZerionPositions(positions, address);
             const addressDefiTotal = transformed.reduce((sum, p) => sum + p.netUsdValue, 0);
             defiUsd += addressDefiTotal;
             console.log(`[Cron] DeFi for ${address.slice(0, 10)}...: $${addressDefiTotal.toFixed(2)}`);
@@ -257,7 +258,7 @@ export async function GET(request: NextRequest) {
               await delay(10000);
               try {
                 const positions = await zerionClient.getDefiPositions(address);
-                const transformed = transformZerionPositions(positions);
+                const transformed = transformZerionPositions(positions, address);
                 const addressDefiTotal = transformed.reduce((sum, p) => sum + p.netUsdValue, 0);
                 defiUsd += addressDefiTotal;
                 console.log(`[Cron] DeFi retry success for ${address.slice(0, 10)}...: $${addressDefiTotal.toFixed(2)}`);
@@ -273,6 +274,41 @@ export async function GET(request: NextRequest) {
       }
     } catch (err) {
       console.error('[Cron] Failed to fetch DeFi positions:', err);
+    }
+
+    // 7b. LlamaLend (crvUSD) positions — not reported by Zerion, read controller directly
+    try {
+      const alchemyKey = process.env.ALCHEMY_API_KEY;
+      const ethUsd = (prices['ethereum']?.usd as number | undefined) ?? null;
+      if (alchemyKey && ethUsd) {
+        const { ethers } = await import('ethers');
+        const provider = new ethers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`);
+        const wstethUsd = await getWstethPrice(provider, ethUsd);
+        const crvusdUsd = (prices['crvusd']?.usd as number | undefined) ?? 0.9988;
+        const priceMap: Record<string, number> = { wsteth: wstethUsd ?? 0, crvusd: crvusdUsd };
+        const ethAddresses = (wallets as DbWallet[])
+          .filter(w => w.address.startsWith('0x'))
+          .map(w => w.address.toLowerCase());
+        for (const market of LLAMA_MARKETS) {
+          let marketNet = 0;
+          for (const address of ethAddresses) {
+            const pos = await getLlamaLendPosition(
+              provider, market, address,
+              { collateralUsd: priceMap[market.collateralGeckoId] || 0, borrowedUsd: priceMap[market.borrowedGeckoId] || 0 }
+            );
+            if (pos) {
+              marketNet += pos.netUsd;
+              console.log(`[Cron] LlamaLend ${pos.collateralSymbol} market: ${address.slice(0, 10)}… coll $${pos.collateralUsd.toFixed(0)} debt $${pos.debtUsd.toFixed(0)} net $${pos.netUsd.toFixed(0)} LTV ${(pos.ltv * 100).toFixed(1)}%`);
+            }
+          }
+          defiUsd += marketNet;
+          if (marketNet !== 0) console.log(`[Cron] LlamaLend net added to DeFi total: $${marketNet.toFixed(2)}`);
+        }
+      } else {
+        console.log('[Cron] Skipping LlamaLend: no ALCHEMY_API_KEY or ETH price');
+      }
+    } catch (err) {
+      console.error('[Cron] LlamaLend fetch failed:', err);
     }
 
     // 8. Create aggregated snapshot

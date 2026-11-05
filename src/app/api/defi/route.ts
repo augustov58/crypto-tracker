@@ -76,7 +76,7 @@ export async function GET() {
             if (i > 0) await delay(2000); // 2s delay to avoid Zerion rate limits
             
             const positions = await client.getDefiPositions(address);
-            const transformed = transformZerionPositions(positions);
+            const transformed = transformZerionPositions(positions, address);
             allPositions.push(...transformed);
           } catch (err) {
             console.error(`Zerion error for ${address}:`, err);

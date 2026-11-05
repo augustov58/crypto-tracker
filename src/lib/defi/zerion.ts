@@ -285,7 +285,7 @@ function isStablecoinVault(name: string, symbol: string): boolean {
  * Transform Zerion positions into our unified DeFi format
  * Now includes vault token detection for positions classified as "wallet"
  */
-export function transformZerionPositions(positions: ZerionPosition[]): DefiPosition[] {
+export function transformZerionPositions(positions: ZerionPosition[], walletAddress?: string): DefiPosition[] {
   // Group by protocol + chain + group_id (for LP pools)
   // Store detected protocol info with each group
   const grouped = new Map<string, { positions: ZerionPosition[]; detectedProtocol: string; detectedType: string }>();
@@ -321,7 +321,10 @@ export function transformZerionPositions(positions: ZerionPosition[]): DefiPosit
     const detectedType = vaultInfo?.type || attr.position_type;
     const chain = pos.relationships.chain.data.id;
     const groupId = attr.group_id || pos.id;
-    const key = `${detectedProtocol}-${chain}-${groupId}`;
+    // Include wallet address in the key: two wallets holding the same protocol token
+    // (e.g. Lido stETH on two addresses) are DIFFERENT positions, not duplicates.
+    const walletPart = walletAddress ? `-${walletAddress.toLowerCase()}` : '';
+    const key = `${detectedProtocol}-${chain}-${groupId}${walletPart}`;
     
     if (!grouped.has(key)) {
       grouped.set(key, { positions: [], detectedProtocol, detectedType });
