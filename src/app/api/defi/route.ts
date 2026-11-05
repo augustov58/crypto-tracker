@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase';
 import { DebankClient, transformDebankPositions, DefiPosition } from '@/lib/defi/debank';
 import { ZerionClient, transformZerionPositions } from '@/lib/defi/zerion';
+import { getLlamaLendPosition, getWstethPrice, LLAMA_MARKETS, LlamaLendPosition } from '@/lib/defi/llamalend';
 
 export interface DefiResponse {
   positions: DefiPosition[];
@@ -87,10 +88,54 @@ export async function GET() {
           new Map(allPositions.map(p => [p.id, p])).values()
         ).sort((a, b) => b.netUsdValue - a.netUsdValue);
         
-        const totalUsd = uniquePositions.reduce((sum, p) => sum + p.netUsdValue, 0);
+        // LlamaLend (crvUSD) positions — not reported by Zerion, read controller on-chain
+        try {
+          const alchemyKey = process.env.ALCHEMY_API_KEY;
+          if (alchemyKey) {
+            const { ethers } = await import('ethers');
+            const provider = new ethers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${alchemyKey}`);
+            const pr = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=ethereum,crvusd&vs_currencies=usd')
+              .then(r => r.json()).catch(() => null);
+            if (pr?.ethereum?.usd) {
+              const wstethUsd = await getWstethPrice(provider, pr.ethereum.usd) ?? 0;
+              const crvusdUsd = pr.crvusd?.usd ?? 0.9988;
+              for (const market of LLAMA_MARKETS) {
+                for (const address of uniqueAddresses as string[]) {
+                  const pos = await getLlamaLendPosition(
+                    provider, market, address,
+                    { collateralUsd: wstethUsd, borrowedUsd: crvusdUsd }
+                  );
+                  if (pos) {
+                    const position: DefiPosition = {
+                      id: `LlamaLend-${market.controller}-${address}`,
+                      protocol: 'LlamaLend',
+                      protocolLogo: null,
+                      protocolUrl: 'https://crvusd.curve.fi/',
+                      chain: 'ethereum',
+                      type: 'lending',
+                      tokens: [{ symbol: pos.collateralSymbol, name: `${pos.collateralSymbol} collateral`, amount: pos.collateralAmount, usdValue: pos.collateralUsd, logo: null }],
+                      debt: [{ symbol: pos.borrowedSymbol, amount: pos.debtAmount, usdValue: pos.debtUsd }],
+                      netUsdValue: pos.netUsd,
+                      assetUsdValue: pos.collateralUsd,
+                      debtUsdValue: pos.debtUsd,
+                    };
+                    allPositions.push(position);
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('LlamaLend fetch failed in /api/defi:', err);
+        }
+        
+        const uniqueWithLlama = Array.from(
+          new Map(allPositions.map(p => [p.id, p])).values()
+        ).sort((a, b) => b.netUsdValue - a.netUsdValue);
+        const totalUsd = uniqueWithLlama.reduce((sum, p) => sum + p.netUsdValue, 0);
         
         return NextResponse.json<DefiResponse>({
-          positions: uniquePositions,
+          positions: uniqueWithLlama,
           totalUsd,
           source: 'zerion',
         });
